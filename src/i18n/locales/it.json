@@ -1,0 +1,59 @@
+{
+  "app": {
+    "title": "ItaliantoApp",
+    "navigation": {
+      "translator": "Traduttore",
+      "conjugator": "Coniugatore",
+      "pronunciation": "Pronuncia"
+    }
+  },
+  "translator": {
+    "title": "Traduttore",
+    "sourceLang": "Lingua di origine",
+    "targetLang": "Italiano",
+    "spanish": "Spagnolo",
+    "english": "Inglese",
+    "inputPlaceholder": "Inserisci il testo da tradurre",
+    "translateButton": "Traduci",
+    "translatedText": "Testo tradotto",
+    "error": "Errore durante la traduzione"
+  },
+  "conjugator": {
+    "title": "Coniugatore di Verbi",
+    "inputPlaceholder": "Inserisci un verbo",
+    "selectTime": "Seleziona il tempo verbale",
+    "conjugateButton": "Coniuga",
+    "result": "Risultato",
+    "tenses": {
+      "presente": "Presente",
+      "passatoProssimo": "Passato Prossimo",
+      "imperfetto": "Imperfetto",
+      "futuroSemplice": "Futuro Semplice",
+      "condizionale": "Condizionale",
+      "congiuntivo": "Congiuntivo"
+    }
+  },
+  "pronunciation": {
+    "title": "Pratica di Pronuncia",
+    "instructions": "Premi il microfono e pronuncia la parola mostrata",
+    "currentWord": "Parola attuale",
+    "startRecording": "Inizia registrazione",
+    "stopRecording": "Ferma registrazione",
+    "listening": "Sto ascoltando...",
+    "analyzing": "Analizzando la pronuncia...",
+    "excellent": "Eccellente!",
+    "good": "Buono!",
+    "tryAgain": "Riprova",
+    "score": "Punteggio",
+    "nextWord": "Prossima parola",
+    "error": "Errore nel riconoscimento vocale"
+  },
+  "common": {
+    "loading": "Caricamento...",
+    "error": "Errore",
+    "retry": "Riprova",
+    "cancel": "Annulla",
+    "save": "Salva",
+    "close": "Chiudi"
+  }
+}
