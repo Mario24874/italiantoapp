@@ -6,7 +6,21 @@
       "Bash(npm install)",
       "Bash(npm install:*)",
       "Bash(npm run type-check:*)",
-      "Bash(npx expo:*)"
+      "Bash(npx expo:*)",
+      "Bash(npx tsc:*)",
+      "Bash(grep:*)",
+      "Bash(awk:*)",
+      "Bash(cp:*)",
+      "Bash(rm:*)",
+      "Bash(npm run build:check:*)",
+      "Bash(npm run expo:doctor:*)",
+      "Bash(eas build:*)",
+      "Bash(eas login:*)",
+      "Bash(eas whoami:*)",
+      "Bash(find:*)",
+      "WebFetch(domain:magicui.design)",
+      "WebFetch(domain:context7.com)",
+      "Bash(npx eas update:*)"
     ],
     "deny": []
   }

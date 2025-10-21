@@ -7,20 +7,28 @@ import {
   StyleSheet,
   ScrollView,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Image
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { ConjugationService } from '../services/conjugationService';
+import { useTheme } from '../context/ThemeContext';
+import { ThemeToggle } from '../components/ThemeToggle';
+import { useUserProgress } from '../hooks/useUserProgress';
 import { VerbTense } from '../types';
 import i18n from '../i18n/i18n';
 
 export default function ConjugatorScreen() {
+  const { colors } = useTheme();
+  const { addConjugation } = useUserProgress();
   const [verb, setVerb] = useState('');
   const [selectedTense, setSelectedTense] = useState<VerbTense>('presente');
   const [conjugation, setConjugation] = useState<any>(null);
   const [error, setError] = useState('');
 
-  const handleConjugate = () => {
+  const styles = getStyles(colors);
+
+  const handleConjugate = async () => {
     if (!verb.trim()) return;
 
     setError('');
@@ -28,6 +36,9 @@ export default function ConjugatorScreen() {
     try {
       const result = ConjugationService.conjugate(verb.toLowerCase().trim(), selectedTense);
       setConjugation(result);
+      
+      // Guardar estadística de conjugación
+      await addConjugation();
     } catch (err) {
       setError('Verbo non valido. Inserisci un verbo che termina in -are, -ere o -ire');
       setConjugation(null);
@@ -42,6 +53,12 @@ export default function ConjugatorScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Header con logo y toggle de tema */}
+        <View style={styles.headerContainer}>
+          <Image source={require('../../assets/Logo_ItaliAnto.png')} style={styles.logo} />
+          <ThemeToggle />
+        </View>
+        
         <Text style={styles.title}>{i18n.t('conjugator.title')}</Text>
 
         <TextInput
@@ -107,57 +124,72 @@ export default function ConjugatorScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     padding: 20,
   },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingTop: 10,
+  },
+  logo: {
+    width: 40,
+    height: 40,
+    opacity: colors.logoOpacity,
+  },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#2e7d32',
+    color: colors.primary,
     textAlign: 'center',
     marginBottom: 30,
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.inputBackground,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.inputBorder,
     padding: 15,
     fontSize: 16,
     marginBottom: 20,
+    color: colors.text,
   },
   pickerContainer: {
     marginBottom: 20,
   },
   label: {
     fontSize: 16,
-    color: '#333',
+    color: colors.text,
     marginBottom: 8,
     fontWeight: '600',
   },
   pickerWrapper: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.border,
     overflow: 'hidden',
   },
   picker: {
     height: 50,
+    color: colors.text,
   },
   button: {
-    backgroundColor: '#2e7d32',
+    backgroundColor: colors.primary,
     borderRadius: 25,
     padding: 15,
     alignItems: 'center',
     marginBottom: 20,
   },
   buttonDisabled: {
+    backgroundColor: colors.buttonDisabled,
     opacity: 0.6,
   },
   buttonText: {
@@ -166,27 +198,27 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   error: {
-    color: '#d32f2f',
+    color: colors.error,
     textAlign: 'center',
     marginBottom: 20,
   },
   resultContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 10,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.border,
   },
   resultTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#2e7d32',
+    color: colors.primary,
     textAlign: 'center',
     marginBottom: 10,
   },
   tenseTitle: {
     fontSize: 18,
-    color: '#666',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 20,
     fontStyle: 'italic',
@@ -202,12 +234,12 @@ const styles = StyleSheet.create({
   pronoun: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: colors.text,
     width: 80,
   },
   conjugatedForm: {
     fontSize: 18,
-    color: '#2e7d32',
+    color: colors.primary,
     flex: 1,
   },
 });
