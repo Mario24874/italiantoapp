@@ -18,37 +18,72 @@ import { useTheme } from '../context/ThemeContext';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useUserProgress } from '../hooks/useUserProgress';
 import { Language } from '../types';
-import i18n from '../i18n/i18n';
+import { useToast } from '../context/ToastContext';
 
 export default function TranslatorScreen() {
   const { colors } = useTheme();
   const { addTranslation } = useUserProgress();
+  const { showError, showSuccess } = useToast();
   const [sourceLanguage, setSourceLanguage] = useState<Language>('es');
+  const [targetLanguage, setTargetLanguage] = useState<Language>('it');
   const [inputText, setInputText] = useState('');
   const [translatedText, setTranslatedText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const styles = getStyles(colors);
 
   const handleTranslate = async () => {
     if (!inputText.trim()) return;
 
+    if (sourceLanguage === targetLanguage) {
+      showError('I linguaggi di origine e destinazione devono essere diversi');
+      return;
+    }
+
     setIsLoading(true);
-    setError('');
-    
+
     try {
-      const result = await TranslationService.translate(inputText, sourceLanguage);
+      const result = await TranslationService.translateBidirectional(
+        inputText,
+        sourceLanguage,
+        targetLanguage
+      );
       setTranslatedText(result);
-      
-      // Guardar en historial si la traducción fue exitosa
+
+      // Guardar en historial si la traducción fue exitosa y el destino es italiano
       if (result && !result.includes('non trovato') && !result.includes('not found')) {
-        await addTranslation(inputText.trim(), result, sourceLanguage);
+        // Solo guardar si estamos traduciendo HACIA italiano (es o en como fuente)
+        if (targetLanguage === 'it' && (sourceLanguage === 'es' || sourceLanguage === 'en')) {
+          await addTranslation(inputText.trim(), result, sourceLanguage as 'es' | 'en');
+        }
+        showSuccess('Traduzione completata!');
       }
     } catch (err) {
-      setError(i18n.t('translator.error'));
+      showError('Errore durante la traduzione');
+      setTranslatedText('');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSwapLanguages = () => {
+    // Intercambia los idiomas
+    const temp = sourceLanguage;
+    setSourceLanguage(targetLanguage);
+    setTargetLanguage(temp);
+
+    // Intercambia los textos
+    const tempText = inputText;
+    setInputText(translatedText);
+    setTranslatedText(tempText);
+  };
+
+  const getLanguageName = (lang: Language): string => {
+    switch (lang) {
+      case 'es': return 'Spagnolo';
+      case 'en': return 'Inglese';
+      case 'it': return 'Italiano';
+      default: return '';
     }
   };
 
@@ -63,68 +98,132 @@ export default function TranslatorScreen() {
           <Image source={require('../../assets/Logo_ItaliAnto.png')} style={styles.logo} />
           <ThemeToggle />
         </View>
-        
-        <Text style={styles.title}>{i18n.t('translator.title')}</Text>
 
-        <View style={styles.languageSelector}>
-          <Text style={styles.label}>{i18n.t('translator.sourceLang')}:</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={sourceLanguage}
-              onValueChange={setSourceLanguage}
-              style={styles.picker}
-            >
-              <Picker.Item label={i18n.t('translator.spanish')} value="es" />
-              <Picker.Item label={i18n.t('translator.english')} value="en" />
-            </Picker>
+        <Text style={styles.title}>Traduttore</Text>
+        <Text style={styles.subtitle}>Traduci tra italiano, spagnolo e inglese</Text>
+
+        {/* Language selectors with swap button */}
+        <View style={styles.languageContainer}>
+          {/* Source language */}
+          <View style={styles.languageBox}>
+            <Text style={styles.label}>Da:</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={sourceLanguage}
+                onValueChange={(value) => {
+                  if (value !== targetLanguage) {
+                    setSourceLanguage(value);
+                  } else {
+                    showError('Seleziona un linguaggio diverso dalla destinazione');
+                  }
+                }}
+                style={styles.picker}
+              >
+                <Picker.Item label="Spagnolo" value="es" />
+                <Picker.Item label="Inglese" value="en" />
+                <Picker.Item label="Italiano" value="it" />
+              </Picker>
+            </View>
+          </View>
+
+          {/* Swap button */}
+          <TouchableOpacity
+            style={styles.swapButton}
+            onPress={handleSwapLanguages}
+          >
+            <Ionicons name="swap-horizontal" size={28} color={colors.primary} />
+          </TouchableOpacity>
+
+          {/* Target language */}
+          <View style={styles.languageBox}>
+            <Text style={styles.label}>A:</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={targetLanguage}
+                onValueChange={(value) => {
+                  if (value !== sourceLanguage) {
+                    setTargetLanguage(value);
+                  } else {
+                    showError('Seleziona un linguaggio diverso dall\'origine');
+                  }
+                }}
+                style={styles.picker}
+              >
+                <Picker.Item label="Spagnolo" value="es" />
+                <Picker.Item label="Inglese" value="en" />
+                <Picker.Item label="Italiano" value="it" />
+              </Picker>
+            </View>
           </View>
         </View>
 
+        {/* Input text */}
         <View style={styles.inputContainer}>
+          <View style={styles.inputHeader}>
+            <Text style={styles.inputLabel}>{getLanguageName(sourceLanguage)}</Text>
+            {inputText.length > 0 && (
+              <TouchableOpacity
+                onPress={() => {
+                  setInputText('');
+                  setTranslatedText('');
+                }}
+              >
+                <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
           <TextInput
             style={styles.input}
-            placeholder={i18n.t('translator.inputPlaceholder')}
+            placeholder={`Scrivi in ${getLanguageName(sourceLanguage).toLowerCase()}...`}
+            placeholderTextColor={colors.textSecondary}
             value={inputText}
             onChangeText={setInputText}
             multiline
             numberOfLines={4}
           />
-          {inputText.length > 0 && (
-            <TouchableOpacity
-              style={styles.clearButton}
-              onPress={() => {
-                setInputText('');
-                setTranslatedText('');
-                setError('');
-              }}
-            >
-              <Ionicons name="close-circle" size={24} color="#999" />
-            </TouchableOpacity>
-          )}
         </View>
 
+        {/* Translate button */}
         <TouchableOpacity
-          style={[styles.button, isLoading && styles.buttonDisabled]}
+          style={[styles.button, (!inputText.trim() || isLoading) && styles.buttonDisabled]}
           onPress={handleTranslate}
-          disabled={isLoading || !inputText.trim()}
+          disabled={!inputText.trim() || isLoading}
         >
           {isLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>{i18n.t('translator.translateButton')}</Text>
+            <>
+              <Ionicons name="language" size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.buttonText}>Traduci</Text>
+            </>
           )}
         </TouchableOpacity>
 
-        {error ? (
-          <Text style={styles.error}>{error}</Text>
-        ) : null}
-
+        {/* Result */}
         {translatedText ? (
           <View style={styles.resultContainer}>
-            <Text style={styles.resultLabel}>{i18n.t('translator.translatedText')}:</Text>
+            <View style={styles.resultHeader}>
+              <Text style={styles.resultLabel}>{getLanguageName(targetLanguage)}</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  // En una app real, esto copiaría al portapapeles
+                  showSuccess('Testo copiato!');
+                }}
+              >
+                <Ionicons name="copy-outline" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
             <Text style={styles.resultText}>{translatedText}</Text>
           </View>
         ) : null}
+
+        {/* Quick actions hint */}
+        <View style={styles.hintContainer}>
+          <Ionicons name="information-circle-outline" size={16} color={colors.textSecondary} />
+          <Text style={styles.hintText}>
+            Tocca 🔄 per scambiare le lingue
+          </Text>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -154,14 +253,24 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: colors.primary,
-    textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: 5,
   },
-  languageSelector: {
+  subtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 25,
+  },
+  languageContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 20,
   },
+  languageBox: {
+    flex: 1,
+  },
   label: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.text,
     marginBottom: 8,
     fontWeight: '600',
@@ -177,9 +286,24 @@ const getStyles = (colors: any) => StyleSheet.create({
     height: 50,
     color: colors.text,
   },
+  swapButton: {
+    padding: 10,
+    marginHorizontal: 10,
+    marginTop: 20,
+  },
   inputContainer: {
-    position: 'relative',
     marginBottom: 20,
+  },
+  inputHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
   },
   input: {
     backgroundColor: colors.inputBackground,
@@ -187,24 +311,24 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.inputBorder,
     padding: 15,
-    paddingRight: 50,
     fontSize: 16,
     minHeight: 100,
     textAlignVertical: 'top',
     color: colors.text,
   },
-  clearButton: {
-    position: 'absolute',
-    top: 15,
-    right: 15,
-    padding: 5,
-  },
   button: {
     backgroundColor: colors.primary,
     borderRadius: 25,
     padding: 15,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   buttonDisabled: {
     backgroundColor: colors.buttonDisabled,
@@ -215,27 +339,44 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  error: {
-    color: colors.error,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
   resultContainer: {
     backgroundColor: colors.surface,
-    borderRadius: 10,
+    borderRadius: 15,
     padding: 20,
     borderWidth: 1,
     borderColor: colors.border,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  resultHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   resultLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 10,
   },
   resultText: {
     fontSize: 18,
     color: colors.primary,
+    lineHeight: 26,
+  },
+  hintContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    gap: 8,
+  },
+  hintText: {
+    fontSize: 12,
+    color: colors.textSecondary,
     fontStyle: 'italic',
   },
 });

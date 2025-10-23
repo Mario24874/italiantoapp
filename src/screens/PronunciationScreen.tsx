@@ -92,26 +92,19 @@ export default function PronunciationScreen() {
     console.error('Speech error:', error);
     setIsListening(false);
     setIsAnalyzing(false);
-    
-    // Si no hay resultados después de un error, dar feedback mínimo pero alentador
+
+    // ELIMINADO: Puntaje mínimo automático
+    // Simplemente informar al usuario del error
     setTimeout(() => {
       if (results.length === 0) {
-        // Dar un puntaje base por intentarlo
-        setScore(40);
-        setFeedback('tryAgain');
-        
-        // Mensaje más específico según el tipo de error
-        if (error?.message?.includes('recognition')) {
-          Alert.alert(
-            'Riprova',
-            'Non ho capito bene. Prova a parlare più chiaramente e vicino al microfono.'
-          );
-        }
+        Alert.alert(
+          'Errore di riconoscimento',
+          'Non ho rilevato alcuna parola. Prova a parlare più chiaramente e vicino al microfono.'
+        );
       }
     }, 500);
-    
-    // No mostrar alert demasiado agresivo, solo log
-    console.log('Voice error handled, encouraging retry');
+
+    console.log('Voice error handled');
   };
 
   const analyzePronunciation = async (spokenWords: string[]) => {
@@ -125,9 +118,9 @@ export default function PronunciationScreen() {
       
       // Guardar estadísticas de pronunciación
       await updatePronunciation(currentWord, result.score);
-      
-      // Mostrar animación de éxito si el puntaje es alto
-      if (result.score >= 85) {
+
+      // Mostrar animación de éxito solo si la pronunciación es excelente (95+)
+      if (result.score >= 95) {
         setShowSuccess(true);
       }
     }, 1000);
@@ -167,26 +160,33 @@ export default function PronunciationScreen() {
   const stopListening = async () => {
     try {
       await VoiceService.stopListening();
-      
-      // Si no hay resultados después de 1.5 segundos, mostrar mensaje
+
+      // ELIMINADO: Puntaje mínimo automático
+      // Si no hay resultados, simplemente informar
       setTimeout(() => {
         if (results.length === 0 && !isAnalyzing) {
-          setScore(40);
-          setFeedback('tryAgain');
           Alert.alert(
-            'Riprova ancora',
+            'Nessuna parola rilevata',
             'Assicurati di pronunciare la parola chiaramente. Puoi ascoltare la pronuncia corretta toccando l\'icona dell\'altoparlante.'
           );
         }
       }, 1500);
-      
+
     } catch (error) {
       console.error('Error stopping voice recognition:', error);
     }
   };
 
-  const playWord = () => {
-    PronunciationService.speakWord(currentWord);
+  const playWord = async () => {
+    try {
+      await PronunciationService.speakWord(currentWord);
+    } catch (error) {
+      console.error('Error playing word:', error);
+      Alert.alert(
+        'Errore audio',
+        'Impossibile riprodurre l\'audio. Verifica le impostazioni audio del dispositivo.'
+      );
+    }
   };
 
   const getFeedbackColor = () => {

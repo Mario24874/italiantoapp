@@ -43,11 +43,25 @@ export class PronunciationService {
   }
 
   static async speakWord(word: string): Promise<void> {
-    await Speech.speak(word, {
-      language: 'it-IT',
-      pitch: 1.0,
-      rate: 0.7
-    });
+    try {
+      // Detener cualquier reproducción anterior
+      await Speech.stop();
+
+      // Reproducir la palabra con configuración optimizada para italiano
+      await Speech.speak(word, {
+        language: 'it-IT',
+        pitch: 1.0,
+        rate: 0.75,  // Velocidad ligeramente más lenta para mejor comprensión
+        volume: 1.0,
+        onDone: () => console.log('Speech finished'),
+        onError: (error) => console.error('Speech error:', error)
+      });
+
+      console.log(`Speaking word: "${word}"`);
+    } catch (error) {
+      console.error('Error speaking word:', error);
+      throw new Error('Errore nella riproduzione audio');
+    }
   }
 
   static async startListening(): Promise<void> {
@@ -83,65 +97,69 @@ export class PronunciationService {
     const target = targetWord.toLowerCase().trim();
     const spoken = spokenWord.toLowerCase().trim();
 
+    // Si no se detectó nada, puntaje 0
+    if (!spoken || spoken.length === 0) {
+      return 0;
+    }
+
     // Coincidencia exacta
     if (target === spoken) {
       return 100;
     }
 
     // Verificar si el spoken contiene el target completamente
-    if (spoken.includes(target) && spoken.length <= target.length + 2) {
-      return 95;
+    if (spoken.includes(target)) {
+      // Si hay palabras extra, penalizar según cuántas
+      if (spoken.length <= target.length + 2) {
+        return 98;
+      } else if (spoken.length <= target.length + 4) {
+        return 92;
+      }
     }
 
-    // Análisis fonético mejorado para italiano
+    // Análisis fonético para italiano
     const targetPhonetic = this.toPhoneticItalian(target);
     const spokenPhonetic = this.toPhoneticItalian(spoken);
 
-    // Si la pronunciación fonética es muy similar
+    // Si la pronunciación fonética es exacta
     if (targetPhonetic === spokenPhonetic) {
-      return 90;
+      return 95;
     }
 
-    // Calcular similitud usando distancia de Levenshtein con ponderación
+    // Calcular distancia de Levenshtein
     const distance = this.levenshteinDistance(target, spoken);
     const phoneticDistance = this.levenshteinDistance(targetPhonetic, spokenPhonetic);
-    
+
     const maxLength = Math.max(target.length, spoken.length);
-    if (maxLength === 0) return 30; // Mínimo si intentó hablar
-    
-    // Combinar similitud literal y fonética
+    if (maxLength === 0) return 0;
+
+    // Calcular similitud literal y fonética
     const literalSimilarity = ((maxLength - distance) / maxLength) * 100;
     const phoneticSimilarity = ((maxLength - phoneticDistance) / maxLength) * 100;
-    
-    // Ponderar más la similitud fonética (60%) sobre la literal (40%)
-    let baseScore = (literalSimilarity * 0.4) + (phoneticSimilarity * 0.6);
-    
-    // Bonus por características específicas del italiano
-    let bonus = 0;
-    
-    // Bonus por acento correcto en las últimas sílabas
-    if (this.checkItalianAccentPattern(target, spoken)) {
-      bonus += 10;
-    }
-    
-    // Bonus por consonantes dobles correctas
-    if (this.checkDoubleConsonants(target, spoken)) {
-      bonus += 5;
-    }
-    
-    // Penalización por errores graves de pronunciación
+
+    // NUEVA PONDERACIÓN: 50% literal, 50% fonética (más equilibrado y estricto)
+    let baseScore = (literalSimilarity * 0.5) + (phoneticSimilarity * 0.5);
+
+    // Penalización severa por errores críticos
     if (this.hasSevereErrors(target, spoken)) {
-      baseScore *= 0.7;
+      baseScore *= 0.5; // Reducir a la mitad
     }
-    
-    const finalScore = Math.min(100, baseScore + bonus);
-    
-    // Asegurar un mínimo de 35% si el usuario hizo un intento genuino
-    if (spoken.length >= target.length * 0.5 && finalScore < 35) {
-      return 35;
+
+    // Penalización por diferencia de longitud significativa
+    const lengthDiff = Math.abs(target.length - spoken.length);
+    if (lengthDiff > 3) {
+      baseScore *= 0.85; // Penalizar 15%
     }
-    
-    return Math.max(20, Math.round(finalScore));
+
+    // ELIMINADO: Bonificaciones automáticas
+    // ELIMINADO: Puntaje mínimo garantizado
+
+    // Bonificación pequeña solo si la pronunciación es MUY cercana
+    if (baseScore >= 85 && this.checkDoubleConsonants(target, spoken)) {
+      baseScore = Math.min(100, baseScore + 3);
+    }
+
+    return Math.max(0, Math.round(baseScore));
   }
 
   private static levenshteinDistance(str1: string, str2: string): number {
@@ -272,9 +290,10 @@ export class PronunciationService {
   }
 
   static getFeedback(score: number): string {
-    if (score >= 85) return 'excellent';
-    if (score >= 65) return 'good';
-    return 'tryAgain';
+    // Umbrales más estrictos para feedback objetivo
+    if (score >= 95) return 'excellent';  // Pronunciación casi perfecta
+    if (score >= 75) return 'good';       // Buena pronunciación con errores menores
+    return 'tryAgain';                     // Necesita mejorar
   }
 
   static analyzePronunciation(targetWord: string, spokenWords: string[]): PronunciationResult {
@@ -289,15 +308,13 @@ export class PronunciationService {
 
     let bestScore = 0;
     let bestMatch = '';
-    const scores: number[] = [];
 
-    // Analizar todas las palabras detectadas
+    // Analizar todas las palabras detectadas y tomar la mejor
     for (const word of spokenWords) {
       const cleanWord = word.trim();
       if (cleanWord) {
         const score = this.calculateScore(targetWord, cleanWord);
-        scores.push(score);
-        
+
         if (score > bestScore) {
           bestScore = score;
           bestMatch = cleanWord;
@@ -305,36 +322,14 @@ export class PronunciationService {
       }
     }
 
-    // Si hay múltiples intentos, considerar el promedio para ser más justo
-    if (scores.length > 1) {
-      const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
-      // Si el promedio es significativamente mejor que el mejor individual, ajustar
-      if (avgScore > bestScore * 0.8) {
-        bestScore = Math.min(100, bestScore + 5);
-      }
-    }
+    // ELIMINADO: Ajustes automáticos por múltiples intentos
+    // ELIMINADO: Bonificaciones por longitud de palabra
+    // ELIMINADO: Crédito parcial automático
 
-    // Ajustes basados en la longitud de la palabra
-    const wordLength = targetWord.length;
-    if (wordLength <= 3 && bestScore < 50 && bestMatch.length > 0) {
-      // Palabras cortas son más difíciles de reconocer
-      bestScore = Math.min(100, bestScore + 15);
-    } else if (wordLength >= 8 && bestScore > 60) {
-      // Palabras largas bien pronunciadas merecen bonus
-      bestScore = Math.min(100, bestScore + 5);
-    }
-
-    // Si el usuario intentó pero el reconocimiento falló, dar crédito parcial
-    if (bestScore < 30 && spokenWords.length > 0 && spokenWords.some(w => w.length > 0)) {
-      bestScore = 35;
-      if (!bestMatch) {
-        bestMatch = spokenWords[0] || 'intento detectado';
-      }
-    }
-
+    // Retornar el resultado objetivo basado únicamente en el mejor puntaje
     return {
       word: targetWord,
-      userPronunciation: bestMatch,
+      userPronunciation: bestMatch || (spokenWords[0] || ''),
       score: Math.round(bestScore),
       feedback: this.getFeedback(bestScore)
     };

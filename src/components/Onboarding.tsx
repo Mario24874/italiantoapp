@@ -27,14 +27,14 @@ interface SlideData {
 const slides: SlideData[] = [
   {
     icon: 'earth',
-    title: 'Benvenuto in ItaliantoApp!',
-    description: 'La tua app completa per imparare l\'italiano con traduzione, coniugazione e pronuncia.',
+    title: 'Benvenuto a Italianto!',
+    description: 'La tua app completa per imparare l\'italiano con traduzioni, coniugazioni e pronuncia.',
     color: '#2e7d32',
   },
   {
     icon: 'language',
     title: 'Traduci Facilmente',
-    description: 'Traduci parole e frasi da spagnolo o inglese all\'italiano con il nostro potente traduttore.',
+    description: 'Traduci parole e frasi dallo spagnolo o inglese all\'italiano con il nostro potente traduttore.',
     color: '#1976d2',
   },
   {
@@ -46,14 +46,8 @@ const slides: SlideData[] = [
   {
     icon: 'mic',
     title: 'Pratica la Pronuncia',
-    description: 'Migliora la tua pronuncia italiana con il riconoscimento vocale e ottieni feedback in tempo reale.',
+    description: 'Migliora la tua pronuncia con il riconoscimento vocale e ottieni feedback in tempo reale.',
     color: '#d32f2f',
-  },
-  {
-    icon: 'trophy',
-    title: 'Monitora i Tuoi Progressi',
-    description: 'Traccia il tuo apprendimento, mantieni la tua serie quotidiana e sblocca traguardi!',
-    color: '#ff6b35',
   },
 ];
 

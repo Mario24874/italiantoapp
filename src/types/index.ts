@@ -25,5 +25,5 @@ export interface PronunciationResult {
   feedback: string;
 }
 
-export type Language = 'es' | 'en';
+export type Language = 'es' | 'en' | 'it';
 export type VerbTense = 'presente' | 'passatoProssimo' | 'imperfetto' | 'futuroSemplice' | 'condizionale' | 'congiuntivo';

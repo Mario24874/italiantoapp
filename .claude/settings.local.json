@@ -20,7 +20,9 @@
       "Bash(find:*)",
       "WebFetch(domain:magicui.design)",
       "WebFetch(domain:context7.com)",
-      "Bash(npx eas update:*)"
+      "Bash(npx eas update:*)",
+      "Bash(npx eas:*)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }

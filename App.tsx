@@ -9,8 +9,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import TranslatorScreen from './src/screens/TranslatorScreen';
 import ConjugatorScreen from './src/screens/ConjugatorScreen';
 import PronunciationScreen from './src/screens/PronunciationScreen';
-import DictionaryScreen from './src/screens/DictionaryScreen';
-import ProgressScreen from './src/screens/ProgressScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { ToastProvider } from './src/context/ToastContext';
@@ -79,12 +77,6 @@ function AppContent() {
               case 'Pronunciation':
                 iconName = focused ? 'mic' : 'mic-outline';
                 break;
-              case 'Dictionary':
-                iconName = focused ? 'search' : 'search-outline';
-                break;
-              case 'Progress':
-                iconName = focused ? 'trophy' : 'trophy-outline';
-                break;
               case 'Settings':
                 iconName = focused ? 'settings' : 'settings-outline';
                 break;
@@ -105,7 +97,7 @@ function AppContent() {
           },
           headerShown: false,
           tabBarLabelStyle: {
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: '600',
           },
         })}
@@ -114,21 +106,14 @@ function AppContent() {
           name="Translator"
           component={TranslatorScreen}
           options={{
-            title: 'Traduci',
-          }}
-        />
-        <Tab.Screen
-          name="Dictionary"
-          component={DictionaryScreen}
-          options={{
-            title: 'Dizionario',
+            title: 'Traduttore',
           }}
         />
         <Tab.Screen
           name="Conjugator"
           component={ConjugatorScreen}
           options={{
-            title: 'Coniuga',
+            title: 'Coniugatore',
           }}
         />
         <Tab.Screen
@@ -139,17 +124,10 @@ function AppContent() {
           }}
         />
         <Tab.Screen
-          name="Progress"
-          component={ProgressScreen}
-          options={{
-            title: 'Progresso',
-          }}
-        />
-        <Tab.Screen
           name="Settings"
           component={SettingsScreen}
           options={{
-            title: 'Impost.',
+            title: 'Impostazioni',
           }}
         />
       </Tab.Navigator>

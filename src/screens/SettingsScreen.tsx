@@ -293,7 +293,6 @@ const getStyles = (colors: any) => StyleSheet.create({
     marginTop: 2,
   },
   premiumSection: {
-    backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     backgroundColor: '#667eea',
     borderRadius: 20,
     padding: 25,

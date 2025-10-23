@@ -1331,19 +1331,149 @@ export class TranslationService {
     'another': ['un altro']
   };
 
+  // Reverse dictionaries (IT→ES, IT→EN)
+  private static italianToSpanishDictionary: Record<string, string[]> = {};
+  private static italianToEnglishDictionary: Record<string, string[]> = {};
+
+  // Initialize reverse dictionaries
+  private static initializeReverseDictionaries() {
+    if (Object.keys(this.italianToSpanishDictionary).length === 0) {
+      // Create IT→ES dictionary
+      for (const [spanish, italianArray] of Object.entries(this.spanishDictionary)) {
+        for (const italian of italianArray) {
+          const normalizedItalian = italian.toLowerCase();
+          if (!this.italianToSpanishDictionary[normalizedItalian]) {
+            this.italianToSpanishDictionary[normalizedItalian] = [];
+          }
+          if (!this.italianToSpanishDictionary[normalizedItalian].includes(spanish)) {
+            this.italianToSpanishDictionary[normalizedItalian].push(spanish);
+          }
+        }
+      }
+    }
+
+    if (Object.keys(this.italianToEnglishDictionary).length === 0) {
+      // Create IT→EN dictionary
+      for (const [english, italianArray] of Object.entries(this.englishDictionary)) {
+        for (const italian of italianArray) {
+          const normalizedItalian = italian.toLowerCase();
+          if (!this.italianToEnglishDictionary[normalizedItalian]) {
+            this.italianToEnglishDictionary[normalizedItalian] = [];
+          }
+          if (!this.italianToEnglishDictionary[normalizedItalian].includes(english)) {
+            this.italianToEnglishDictionary[normalizedItalian].push(english);
+          }
+        }
+      }
+    }
+  }
+
   // Cache for phrase translations
   private static phraseCache = new Map<string, string>();
-  
+
   // DeepL API configuration
   private static readonly DEEPL_API_KEY = Constants.expoConfig?.extra?.deeplApiKey || '';
   private static readonly DEEPL_API_URL = 'https://api-free.deepl.com/v2/translate';
   private static readonly MIN_API_LENGTH = 5; // Minimum characters for API call
   private static readonly API_TIMEOUT = 5000; // 5 seconds timeout
 
+  // Bidirectional translation method (ES↔IT, EN↔IT) with DeepL API support
+  static async translateBidirectional(
+    text: string,
+    sourceLang: Language,
+    targetLang: Language
+  ): Promise<string> {
+    try {
+      const normalizedText = text.toLowerCase().trim();
+
+      // Validate that source and target are different
+      if (sourceLang === targetLang) {
+        return text;
+      }
+
+      // Initialize reverse dictionaries on first use
+      this.initializeReverseDictionaries();
+
+      // Check cache first
+      const cacheKey = `${sourceLang}-${targetLang}:${normalizedText}`;
+      if (this.phraseCache.has(cacheKey)) {
+        return this.phraseCache.get(cacheKey)!;
+      }
+
+      // Select appropriate dictionary based on direction
+      let dictionary: Record<string, string[]>;
+
+      if (sourceLang === 'es' && targetLang === 'it') {
+        dictionary = this.spanishDictionary;
+      } else if (sourceLang === 'en' && targetLang === 'it') {
+        dictionary = this.englishDictionary;
+      } else if (sourceLang === 'it' && targetLang === 'es') {
+        dictionary = this.italianToSpanishDictionary;
+      } else if (sourceLang === 'it' && targetLang === 'en') {
+        dictionary = this.italianToEnglishDictionary;
+      } else {
+        // For unsupported combinations (ES↔EN), return a message
+        return `Traduzione ${sourceLang.toUpperCase()}→${targetLang.toUpperCase()} non ancora supportata. Usa l'italiano come lingua intermedia.`;
+      }
+
+      // 1. Try exact match in dictionary first
+      if (dictionary[normalizedText]) {
+        const translations = dictionary[normalizedText];
+        const result = translations.length === 1
+          ? translations[0]
+          : translations.join(' • ');
+        this.phraseCache.set(cacheKey, result);
+        return result;
+      }
+
+      // 2. Try DeepL API for phrases or words not in dictionary
+      if (normalizedText.length >= this.MIN_API_LENGTH) {
+        const apiTranslation = await this.translateWithAPIBidirectional(text, sourceLang, targetLang);
+        if (apiTranslation) {
+          this.phraseCache.set(cacheKey, apiTranslation);
+          return apiTranslation;
+        }
+      }
+
+      // 3. For longer text, try word-by-word and phrase matching
+      const words = normalizedText.split(' ');
+      if (words.length > 1) {
+        const phraseTranslation = await this.translateByPhrases(words, dictionary);
+        if (phraseTranslation && phraseTranslation !== normalizedText) {
+          this.phraseCache.set(cacheKey, phraseTranslation);
+          return phraseTranslation;
+        }
+      }
+
+      // 4. Try single word with variations
+      const wordTranslation = this.translateSingleWord(normalizedText, dictionary);
+      if (wordTranslation) {
+        this.phraseCache.set(cacheKey, wordTranslation);
+        return wordTranslation;
+      }
+
+      // 5. Try partial matches and suggestions
+      const suggestions = this.findSmartSuggestions(normalizedText, dictionary);
+      if (suggestions.length > 0) {
+        const result = this.formatSuggestionsForBidirectional(suggestions, normalizedText, targetLang);
+        this.phraseCache.set(cacheKey, result);
+        return result;
+      }
+
+      // 6. No translation found - provide helpful message
+      const notFound = this.getNotFoundMessageBidirectional(text, targetLang);
+      return notFound;
+
+    } catch (error) {
+      console.error('Bidirectional translation error:', error);
+      return this.getErrorMessageBidirectional(text, targetLang);
+    }
+  }
+
   static async translate(text: string, sourceLang: Language): Promise<string> {
     try {
       const normalizedText = text.toLowerCase().trim();
-      
+
       // Check cache first
       const cacheKey = `${sourceLang}:${normalizedText}`;
       if (this.phraseCache.has(cacheKey)) {
@@ -1406,21 +1536,21 @@ export class TranslationService {
     }
   }
 
-  // API translation using DeepL
+  // API translation using DeepL (original method - ES/EN to IT only)
   private static async translateWithAPI(text: string, sourceLang: Language): Promise<string | null> {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.API_TIMEOUT);
-      
+
       const sourceLangCode = sourceLang === 'es' ? 'ES' : 'EN';
       const targetLangCode = 'IT';
-      
+
       const formData = new URLSearchParams();
       formData.append('auth_key', this.DEEPL_API_KEY);
       formData.append('text', text);
       formData.append('source_lang', sourceLangCode);
       formData.append('target_lang', targetLangCode);
-      
+
       const response = await fetch(this.DEEPL_API_URL, {
         method: 'POST',
         signal: controller.signal,
@@ -1429,16 +1559,16 @@ export class TranslationService {
         },
         body: formData.toString()
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         console.log('DeepL API error:', response.status);
         return null;
       }
-      
+
       const data = await response.json();
-      
+
       if (data.translations && data.translations.length > 0) {
         const translation = data.translations[0].text;
         // Verify it's not the same as input
@@ -1446,11 +1576,77 @@ export class TranslationService {
           return translation;
         }
       }
-      
+
       return null;
     } catch (error) {
       // Silently fail and fallback to dictionary
       console.log('DeepL API translation failed, using dictionary fallback');
+      return null;
+    }
+  }
+
+  // Bidirectional API translation using DeepL (supports all directions)
+  private static async translateWithAPIBidirectional(
+    text: string,
+    sourceLang: Language,
+    targetLang: Language
+  ): Promise<string | null> {
+    try {
+      // Skip API if no API key configured
+      if (!this.DEEPL_API_KEY || this.DEEPL_API_KEY === '') {
+        return null;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.API_TIMEOUT);
+
+      // Map language codes for DeepL API
+      const langMap: Record<Language, string> = {
+        'es': 'ES',
+        'en': 'EN',
+        'it': 'IT'
+      };
+
+      const sourceLangCode = langMap[sourceLang];
+      const targetLangCode = langMap[targetLang];
+
+      const formData = new URLSearchParams();
+      formData.append('auth_key', this.DEEPL_API_KEY);
+      formData.append('text', text);
+      formData.append('source_lang', sourceLangCode);
+      formData.append('target_lang', targetLangCode);
+
+      const response = await fetch(this.DEEPL_API_URL, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData.toString()
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        console.log(`DeepL API error (${sourceLang}→${targetLang}):`, response.status);
+        return null;
+      }
+
+      const data = await response.json();
+
+      if (data.translations && data.translations.length > 0) {
+        const translation = data.translations[0].text;
+        // Verify it's not the same as input
+        if (translation.toLowerCase() !== text.toLowerCase()) {
+          console.log(`DeepL translation success: "${text}" → "${translation}"`);
+          return translation;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      // Silently fail and fallback to dictionary
+      console.log('DeepL API bidirectional translation failed, using dictionary fallback', error);
       return null;
     }
   }
@@ -1753,7 +1949,33 @@ export class TranslationService {
       return `Error translating "${text}". Please try again later.`;
     }
   }
-  
+
+  // Bidirectional helper methods
+  private static formatSuggestionsForBidirectional(suggestions: string[], originalText: string, targetLang: Language): string {
+    if (suggestions.length === 0) {
+      return this.getNotFoundMessageBidirectional(originalText, targetLang);
+    }
+
+    if (suggestions.length === 1) {
+      return `${suggestions[0]} (suggerimento)`;
+    }
+
+    const topSuggestions = suggestions.slice(0, 3).join(' • ');
+    return `Suggerimenti: ${topSuggestions}`;
+  }
+
+  private static getNotFoundMessageBidirectional(text: string, targetLang: Language): string {
+    const langName = targetLang === 'it' ? 'italiano' : targetLang === 'es' ? 'spagnolo' : 'inglese';
+    return `"${text}" non trovato nel dizionario ${langName}. Prova:
+• Controllare l'ortografia
+• Usare parole più semplici
+• Dividere frasi lunghe`;
+  }
+
+  private static getErrorMessageBidirectional(text: string, targetLang: Language): string {
+    return `Errore nella traduzione di "${text}". Riprova più tardi.`;
+  }
+
   static getRandomWord(sourceLang: Language): { original: string, translation: string } {
     const dictionary = sourceLang === 'es' ? this.spanishDictionary : this.englishDictionary;
     const keys = Object.keys(dictionary);
