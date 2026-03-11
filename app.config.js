@@ -42,7 +42,8 @@ export default {
     plugins: [
       "expo-dev-client",
       "expo-secure-store",
-      "@react-native-voice/voice"
+      "@react-native-voice/voice",
+      "./plugins/withMinSdkVersion"
     ],
     extra: {
       eas: {
