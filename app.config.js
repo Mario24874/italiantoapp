@@ -3,6 +3,7 @@ export default {
     name: "ItaliantoApp",
     slug: "italiantoapp",
     version: "1.2.0",
+    scheme: "italiantoapp",
     orientation: "portrait",
     icon: "./assets/Logo_ItaliAnto.png",
     userInterfaceStyle: "light",
@@ -24,8 +25,11 @@ export default {
     android: {
       package: "com.italiantoapp.app",
       versionCode: 3,
+      minSdkVersion: 24,
       permissions: [
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       adaptiveIcon: {
         foregroundImage: "./assets/Logo_ItaliAnto.png",
@@ -36,6 +40,8 @@ export default {
       favicon: "./assets/favicon.png"
     },
     plugins: [
+      "expo-dev-client",
+      "expo-secure-store",
       "@react-native-voice/voice"
     ],
     extra: {
