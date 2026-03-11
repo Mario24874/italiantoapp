@@ -1,72 +1,64 @@
+import 'react-native-url-polyfill/auto';
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import { ClerkProvider } from '@clerk/clerk-expo';
 
 import TranslatorScreen from './src/screens/TranslatorScreen';
+import TutorScreen from './src/screens/TutorScreen';
 import ConjugatorScreen from './src/screens/ConjugatorScreen';
 import PronunciationScreen from './src/screens/PronunciationScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import SignInScreen from './src/screens/auth/SignInScreen';
+import SignUpScreen from './src/screens/auth/SignUpScreen';
+import PaywallScreen from './src/screens/PaywallScreen';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { ToastProvider } from './src/context/ToastContext';
+import { AuthProvider } from './src/context/AuthContext';
 import { SplashScreen } from './src/components/SplashScreen';
 import { Onboarding } from './src/components/Onboarding';
-import i18n from './src/i18n/i18n';
 
 const Tab = createBottomTabNavigator();
+const RootStack = createNativeStackNavigator();
 
-function AppContent() {
-  const { colors, theme } = useTheme();
-  const [showSplash, setShowSplash] = useState(true);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    checkOnboardingStatus();
-  }, []);
-
-  const checkOnboardingStatus = async () => {
+// Token cache para Clerk usando expo-secure-store
+const tokenCache = {
+  async getToken(key: string) {
     try {
-      const onboardingCompleted = await AsyncStorage.getItem('onboarding_completed');
-      setShowOnboarding(onboardingCompleted !== 'true');
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error checking onboarding status:', error);
-      setIsLoading(false);
+      return await SecureStore.getItemAsync(key);
+    } catch {
+      return null;
     }
-  };
+  },
+  async saveToken(key: string, value: string) {
+    try {
+      await SecureStore.setItemAsync(key, value);
+    } catch {}
+  },
+  async clearToken(key: string) {
+    try {
+      await SecureStore.deleteItemAsync(key);
+    } catch {}
+  },
+};
 
-  const handleSplashComplete = () => {
-    setShowSplash(false);
-  };
-
-  const handleOnboardingComplete = () => {
-    setShowOnboarding(false);
-  };
-
-  if (isLoading) {
-    return null;
-  }
-
-  if (showSplash) {
-    return <SplashScreen onAnimationComplete={handleSplashComplete} />;
-  }
-
-  if (showOnboarding) {
-    return <Onboarding onComplete={handleOnboardingComplete} />;
-  }
+// ─── Tabs principales (sin cambios respecto a v1.2.0) ───────────────────────
+function MainTabs() {
+  const { colors, theme } = useTheme();
 
   return (
-    <NavigationContainer>
+    <>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       <Tab.Navigator
         screenOptions={({ route }) => ({
           tabBarIcon: ({ focused, color, size }) => {
             let iconName: keyof typeof Ionicons.glyphMap;
-
             switch (route.name) {
               case 'Translator':
                 iconName = focused ? 'language' : 'language-outline';
@@ -77,13 +69,15 @@ function AppContent() {
               case 'Pronunciation':
                 iconName = focused ? 'mic' : 'mic-outline';
                 break;
+              case 'Tutor':
+                iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+                break;
               case 'Settings':
                 iconName = focused ? 'settings' : 'settings-outline';
                 break;
               default:
                 iconName = 'ellipse';
             }
-
             return <Ionicons name={iconName} size={size} color={color} />;
           },
           tabBarActiveTintColor: colors.primary,
@@ -102,47 +96,97 @@ function AppContent() {
           },
         })}
       >
-        <Tab.Screen
-          name="Translator"
-          component={TranslatorScreen}
-          options={{
-            title: 'Traduttore',
-          }}
-        />
-        <Tab.Screen
-          name="Conjugator"
-          component={ConjugatorScreen}
-          options={{
-            title: 'Coniugatore',
-          }}
-        />
-        <Tab.Screen
-          name="Pronunciation"
-          component={PronunciationScreen}
-          options={{
-            title: 'Pronuncia',
-          }}
-        />
-        <Tab.Screen
-          name="Settings"
-          component={SettingsScreen}
-          options={{
-            title: 'Impostazioni',
-          }}
-        />
+        <Tab.Screen name="Translator" component={TranslatorScreen} options={{ title: 'Traduttore' }} />
+        <Tab.Screen name="Conjugator" component={ConjugatorScreen} options={{ title: 'Coniugatore' }} />
+        <Tab.Screen name="Pronunciation" component={PronunciationScreen} options={{ title: 'Pronuncia' }} />
+        <Tab.Screen name="Tutor" component={TutorScreen} options={{ title: 'Tutor AI' }} />
+        <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Impostazioni' }} />
       </Tab.Navigator>
-    </NavigationContainer>
+    </>
   );
 }
 
-export default function App() {
+// ─── Navegador raíz: maneja Splash → Onboarding → App + Auth modals ─────────
+function RootNavigator() {
+  const [showSplash, setShowSplash] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    AsyncStorage.getItem('onboarding_completed')
+      .then(val => {
+        setShowOnboarding(val !== 'true');
+        setIsLoading(false);
+      })
+      .catch(() => setIsLoading(false));
+  }, []);
+
+  if (isLoading) return null;
+
+  if (showSplash) {
+    return (
+      <SplashScreen
+        onAnimationComplete={() => setShowSplash(false)}
+      />
+    );
+  }
+
+  if (showOnboarding) {
+    return (
+      <Onboarding onComplete={() => setShowOnboarding(false)} />
+    );
+  }
+
   return (
+    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+      {/* App principal */}
+      <RootStack.Screen name="MainTabs" component={MainTabs} />
+      {/* Pantallas de auth — se abren como modal desde SettingsScreen */}
+      <RootStack.Screen
+        name="SignIn"
+        component={SignInScreen}
+        options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+      />
+      <RootStack.Screen
+        name="SignUp"
+        component={SignUpScreen}
+        options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+      />
+      <RootStack.Screen
+        name="Paywall"
+        component={PaywallScreen}
+        options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+      />
+    </RootStack.Navigator>
+  );
+}
+
+// ─── App raíz ────────────────────────────────────────────────────────────────
+const CLERK_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+export default function App() {
+  const content = (
     <SafeAreaProvider>
       <ThemeProvider>
         <ToastProvider>
-          <AppContent />
+          <AuthProvider>
+            <NavigationContainer>
+              <RootNavigator />
+            </NavigationContainer>
+          </AuthProvider>
         </ToastProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
+
+  // ClerkProvider solo se activa cuando la key está configurada en .env
+  if (CLERK_KEY) {
+    return (
+      <ClerkProvider publishableKey={CLERK_KEY} tokenCache={tokenCache}>
+        {content}
+      </ClerkProvider>
+    );
+  }
+
+  return content;
 }

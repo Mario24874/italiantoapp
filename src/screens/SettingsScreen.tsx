@@ -11,15 +11,19 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
 import { ThemeToggle } from '../components/ThemeToggle';
 import StorageService from '../services/storageService';
 import { useToast } from '../context/ToastContext';
 import { FadeInView } from '../components/FadeInView';
+import { useAuth } from '../context/AuthContext';
 
 export default function SettingsScreen() {
   const { colors, theme } = useTheme();
   const { showSuccess, showError, showInfo } = useToast();
+  const { isSignedIn, userEmail, signOut, clerkConfigured, isPremium, subscriptionPlan } = useAuth();
+  const navigation = useNavigation<any>();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   const styles = getStyles(colors);
@@ -53,6 +57,28 @@ export default function SettingsScreen() {
               showSuccess('Tutti i dati sono stati eliminati');
             } catch (error) {
               showError('Errore durante l\'eliminazione');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSignOut = () => {
+    Alert.alert(
+      'Esci',
+      'Sei sicuro di voler uscire dal tuo account?',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Esci',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut();
+              showSuccess('Sei uscito correttamente');
+            } catch {
+              showError('Errore durante il logout');
             }
           },
         },
@@ -156,20 +182,83 @@ export default function SettingsScreen() {
           </View>
         </FadeInView>
 
-        {/* Premium (Preparazione futura) */}
+        {/* Account / Auth */}
+        {clerkConfigured && (
+          <FadeInView delay={350}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Account</Text>
+              {isSignedIn ? (
+                <>
+                  <View style={styles.accountRow}>
+                    <View style={styles.iconContainer}>
+                      <Ionicons name="person-circle" size={24} color={colors.primary} />
+                    </View>
+                    <View style={styles.settingText}>
+                      <Text style={styles.settingTitle}>Connesso come</Text>
+                      <Text style={styles.settingSubtitle}>{userEmail}</Text>
+                    </View>
+                  </View>
+                  <SettingRow
+                    icon="log-out"
+                    title="Esci"
+                    subtitle="Disconnetti il tuo account"
+                    onPress={handleSignOut}
+                    showArrow={false}
+                  />
+                </>
+              ) : (
+                <>
+                  <SettingRow
+                    icon="log-in"
+                    title="Accedi"
+                    subtitle="Entra nel tuo account"
+                    onPress={() => navigation.navigate('SignIn')}
+                  />
+                  <SettingRow
+                    icon="person-add"
+                    title="Registrati"
+                    subtitle="Crea un nuovo account"
+                    onPress={() => navigation.navigate('SignUp')}
+                  />
+                </>
+              )}
+            </View>
+          </FadeInView>
+        )}
+
+        {/* Premium */}
         <FadeInView delay={400}>
           <View style={styles.premiumSection}>
             <View style={styles.premiumHeader}>
               <Ionicons name="sparkles" size={30} color="#ffd700" />
               <Text style={styles.premiumTitle}>ItaliantoApp Premium</Text>
             </View>
-            <Text style={styles.premiumDescription}>
-              Ottieni accesso a un tutor personale con IA, lezioni avanzate e molto altro!
-            </Text>
-            <TouchableOpacity style={styles.premiumButton}>
-              <Text style={styles.premiumButtonText}>Prossimamente</Text>
-              <Ionicons name="lock-closed" size={20} color="#fff" />
-            </TouchableOpacity>
+            {isPremium ? (
+              <>
+                <View style={styles.premiumActiveBadge}>
+                  <Ionicons name="checkmark-circle" size={18} color="#ffd700" />
+                  <Text style={styles.premiumActiveText}>
+                    Piano {subscriptionPlan} attivo
+                  </Text>
+                </View>
+                <Text style={styles.premiumDescription}>
+                  Hai accesso completo al Tutor AI e a tutte le funzionalità premium!
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.premiumDescription}>
+                  Ottieni accesso al Tutor AI, pratica conversazioni in italiano in tempo reale e molto altro!
+                </Text>
+                <TouchableOpacity
+                  style={styles.premiumButton}
+                  onPress={() => navigation.navigate('Paywall')}
+                >
+                  <Text style={styles.premiumButtonText}>Abbonati Ora</Text>
+                  <Ionicons name="arrow-forward" size={20} color="#fff" />
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </FadeInView>
 
@@ -292,6 +381,14 @@ const getStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
+  accountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   premiumSection: {
     backgroundColor: '#667eea',
     borderRadius: 20,
@@ -305,6 +402,18 @@ const getStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     marginBottom: 15,
     gap: 10,
+  },
+  premiumActiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  premiumActiveText: {
+    color: '#ffd700',
+    fontSize: 15,
+    fontWeight: '700',
+    textTransform: 'capitalize',
   },
   premiumTitle: {
     fontSize: 22,
