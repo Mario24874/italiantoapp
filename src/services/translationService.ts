@@ -1,9 +1,109 @@
 import axios from 'axios';
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import { Translation, Language } from '../types';
 
 export class TranslationService {
   private static spanishDictionary: Record<string, string[]> = {
+    // Artículos y pronombres
+    'el': ['il'],
+    'la': ['la'],
+    'los': ['i'],
+    'las': ['le'],
+    'un': ['un'],
+    'una': ['una'],
+    'unos': ['alcuni'],
+    'unas': ['alcune'],
+    'yo': ['io'],
+    'tú': ['tu'],
+    'él': ['lui'],
+    'ella': ['lei'],
+    'nosotros': ['noi'],
+    'vosotros': ['voi'],
+    'ellos': ['loro'],
+    'ellas': ['loro'],
+    'me': ['mi'],
+    'te': ['ti'],
+    'se': ['si'],
+    'nos': ['ci'],
+    'os': ['vi'],
+
+    // Preposiciones comunes
+    'en': ['in', 'a'],
+    'de': ['di', 'da'],
+    'a': ['a'],
+    'con': ['con'],
+    'sin': ['senza'],
+    'por': ['per', 'da'],
+    'para': ['per'],
+    'sobre': ['su', 'sopra'],
+    'bajo': ['sotto'],
+    'entre': ['tra', 'fra'],
+    'hasta': ['fino a'],
+    'desde': ['da'],
+    'hacia': ['verso'],
+    'ante': ['davanti a'],
+    'durante': ['durante'],
+    'mediante': ['mediante'],
+    'según': ['secondo'],
+
+    // Verbos comunes (infinitivo y formas conjugadas)
+    'ser': ['essere'],
+    'estar': ['stare', 'essere'],
+    'tener': ['avere'],
+    'hacer': ['fare'],
+    'ir': ['andare'],
+    'venir': ['venire'],
+    'querer': ['volere'],
+    'poder': ['potere'],
+    'saber': ['sapere'],
+    'ver': ['vedere'],
+    'dar': ['dare'],
+    'decir': ['dire'],
+    'hablar': ['parlare'],
+    'comer': ['mangiare'],
+    'beber': ['bere'],
+    'dormir': ['dormire'],
+    'vivir': ['vivere'],
+    'trabajar': ['lavorare'],
+    'estudiar': ['studiare'],
+    'abrir': ['aprire'],
+    'cerrar': ['chiudere'],
+    'cierra': ['chiudi'],
+    'cierra la boca': ['chiudi la bocca'],
+    'abre': ['apri'],
+    'voy': ['vado'],
+    'vamos': ['andiamo'],
+    'es': ['è'],
+    'son': ['sono'],
+    'hay': ["c'è", "ci sono"],
+    'tengo': ['ho'],
+    'tiene': ['ha'],
+    'quiero': ['voglio'],
+    'puede': ['può'],
+    'soy': ['sono'],
+
+    // Adjetivos comunes
+    'bueno': ['buono', 'bene'],
+    'buena': ['buona'],
+    'malo': ['cattivo', 'brutto'],
+    'mala': ['cattiva'],
+    'grande': ['grande'],
+    'pequeño': ['piccolo'],
+    'pequeña': ['piccola'],
+    'nuevo': ['nuovo'],
+    'nueva': ['nuova'],
+    'viejo': ['vecchio'],
+    'vieja': ['vecchia'],
+    'bonito': ['bello', 'carino'],
+    'bonita': ['bella', 'carina'],
+    'feo': ['brutto'],
+    'fea': ['brutta'],
+    'feliz': ['felice'],
+    'triste': ['triste'],
+    'cansado': ['stanco'],
+    'cansada': ['stanca'],
+
     // Saludos y cortesía
     'hola': ['ciao', 'salve', 'buongiorno'],
     'adiós': ['arrivederci', 'addio', 'ciao'],
@@ -1374,8 +1474,11 @@ export class TranslationService {
   // DeepL API configuration
   private static readonly DEEPL_API_KEY = Constants.expoConfig?.extra?.deeplApiKey || '';
   private static readonly DEEPL_API_URL = 'https://api-free.deepl.com/v2/translate';
-  private static readonly MIN_API_LENGTH = 5; // Minimum characters for API call
-  private static readonly API_TIMEOUT = 5000; // 5 seconds timeout
+  // On web, use Supabase proxy to avoid CORS restrictions
+  private static readonly SUPABASE_TRANSLATE_URL = 'https://zhpnoohdefnigumjgxbc.supabase.co/functions/v1/translate';
+  private static readonly SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || Constants.expoConfig?.extra?.supabaseAnonKey || '';
+  private static readonly MIN_API_LENGTH = 3; // Minimum characters for API call
+  private static readonly API_TIMEOUT = 8000; // 8 seconds timeout
 
   // Bidirectional translation method (ES↔IT, EN↔IT) with DeepL API support
   static async translateBidirectional(
@@ -1586,49 +1689,57 @@ export class TranslationService {
   }
 
   // Bidirectional API translation using DeepL (supports all directions)
+  // On web: uses Supabase proxy to bypass CORS. On native: calls DeepL directly.
   private static async translateWithAPIBidirectional(
     text: string,
     sourceLang: Language,
     targetLang: Language
   ): Promise<string | null> {
     try {
-      // Skip API if no API key configured
-      if (!this.DEEPL_API_KEY || this.DEEPL_API_KEY === '') {
-        return null;
-      }
-
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.API_TIMEOUT);
 
-      // Map language codes for DeepL API
-      const langMap: Record<Language, string> = {
-        'es': 'ES',
-        'en': 'EN',
-        'it': 'IT'
-      };
-
+      const langMap: Record<Language, string> = { 'es': 'ES', 'en': 'EN', 'it': 'IT' };
       const sourceLangCode = langMap[sourceLang];
       const targetLangCode = langMap[targetLang];
 
-      const formData = new URLSearchParams();
-      formData.append('auth_key', this.DEEPL_API_KEY);
-      formData.append('text', text);
-      formData.append('source_lang', sourceLangCode);
-      formData.append('target_lang', targetLangCode);
+      let response: Response;
 
-      const response = await fetch(this.DEEPL_API_URL, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: formData.toString()
-      });
+      if (Platform.OS === 'web') {
+        // Use Supabase proxy to avoid CORS
+        response = await fetch(this.SUPABASE_TRANSLATE_URL, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': this.SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${this.SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ text, source_lang: sourceLangCode, target_lang: targetLangCode }),
+        });
+      } else {
+        // Native: call DeepL directly
+        if (!this.DEEPL_API_KEY || this.DEEPL_API_KEY === '') {
+          clearTimeout(timeoutId);
+          return null;
+        }
+        const formData = new URLSearchParams();
+        formData.append('auth_key', this.DEEPL_API_KEY);
+        formData.append('text', text);
+        formData.append('source_lang', sourceLangCode);
+        formData.append('target_lang', targetLangCode);
+        response = await fetch(this.DEEPL_API_URL, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formData.toString(),
+        });
+      }
 
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        console.log(`DeepL API error (${sourceLang}→${targetLang}):`, response.status);
+        console.log(`Translation API error (${sourceLang}→${targetLang}):`, response.status);
         return null;
       }
 
@@ -1636,17 +1747,14 @@ export class TranslationService {
 
       if (data.translations && data.translations.length > 0) {
         const translation = data.translations[0].text;
-        // Verify it's not the same as input
         if (translation.toLowerCase() !== text.toLowerCase()) {
-          console.log(`DeepL translation success: "${text}" → "${translation}"`);
           return translation;
         }
       }
 
       return null;
     } catch (error) {
-      // Silently fail and fallback to dictionary
-      console.log('DeepL API bidirectional translation failed, using dictionary fallback', error);
+      console.log('Translation API failed, using dictionary fallback', error);
       return null;
     }
   }
@@ -1809,25 +1917,28 @@ export class TranslationService {
   private static findWordVariations(word: string, dictionary: Record<string, string[]>): string[] {
     const variations: string[] = [];
     const lowerWord = word.toLowerCase();
-    
+
     // Direct variations
     for (const [key, values] of Object.entries(dictionary)) {
-      // Check for words that start with the input or vice versa
-      if (key.startsWith(lowerWord) || lowerWord.startsWith(key)) {
+      // startsWith only for longer words to avoid false positives (e.g. "la" matching "lavadora")
+      if (lowerWord.length >= 4 && key.length >= 4 &&
+          (key.startsWith(lowerWord) || lowerWord.startsWith(key))) {
         variations.push(...values);
       }
-      
-      // Check for words that share the same stem
-      if (this.getStem(key) === this.getStem(lowerWord)) {
+
+      // Check for words that share the same stem (only for words long enough to have a stem)
+      if (lowerWord.length >= 5 && key.length >= 5 &&
+          this.getStem(key) === this.getStem(lowerWord)) {
         variations.push(...values);
       }
-      
-      // Check for Levenshtein distance <= 1 (for typos)
-      if (this.levenshteinDistance(key, lowerWord) <= 1) {
+
+      // Check for Levenshtein distance <= 1 (for typos), only for longer words
+      if (lowerWord.length >= 4 && key.length >= 4 &&
+          this.levenshteinDistance(key, lowerWord) <= 1) {
         variations.push(...values);
       }
     }
-    
+
     // Remove duplicates and return
     return Array.from(new Set(variations));
   }
