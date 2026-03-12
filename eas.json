@@ -21,16 +21,6 @@
       },
       "ios": {
         "simulator": true
-      },
-      "env": {
-        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_c3dlZXBpbmctbWFzdGlmZi01MC5jbGVyay5hY2NvdW50cy5kZXYk",
-        "EXPO_PUBLIC_SUPABASE_URL": "https://zhpnoohdefnigumjgxbc.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpocG5vb2hkZWZuaWd1bWpneGJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwOTMwOTQsImV4cCI6MjA4ODY2OTA5NH0.0VHkHUdgf2TkmHlcWA6ru5s0Q9e6yX2YVhQkvDxDMVc",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51Sjr4sIVhzJhQHiFypBRSLysWM0QaCB0yvdoeGBN6k0qx2kLNmXhaPxPdvpZcG8ATvtT0LraenlzisCf2ROAEKJI006PAYfpDr",
-        "EXPO_PUBLIC_STRIPE_PRICE_MENSILE": "price_1T6xXMIVhzJhQHiFEPuHHiVa",
-        "EXPO_PUBLIC_STRIPE_PRICE_ANNUALE": "price_1T9PuPIVhzJhQHiFJ0bY3wj7",
-        "EXPO_PUBLIC_VAPI_PUBLIC_KEY": "01b556bf-be48-4fc3-a491-e6da30a4d221",
-        "EXPO_PUBLIC_VAPI_ASSISTANT_ID": "cefa9428-a243-4526-a44b-19900919580a"
       }
     },
     "production": {
