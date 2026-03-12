@@ -37,7 +37,8 @@ export default {
       }
     },
     web: {
-      favicon: "./assets/favicon.png"
+      favicon: "./assets/favicon.png",
+      bundler: "metro"
     },
     updates: {
       url: "https://u.expo.dev/76bffcff-51b7-465e-8239-d5cb8fce4413"
