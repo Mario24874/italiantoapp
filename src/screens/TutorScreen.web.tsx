@@ -70,15 +70,17 @@ Regole fondamentali:
 Se l'utente è principiante (A1-A2), puoi dare brevi spiegazioni in spagnolo o inglese solo quando strettamente necessario, poi torna subito all'italiano.`;
 }
 
-// ─── Carga dinámica de Vapi desde CDN (evita Metro bundling de @daily-co/daily-js) ──
+// ─── Carga dinámica de Vapi desde CDN ────────────────────────────────────────
+// Usamos new Function() para que Metro NO analice estáticamente el import()
+// y falle en build-time. El browser lo ejecuta sin problemas en runtime.
 let vapiInstance: any = null;
 
 async function getVapi(): Promise<any> {
   if (vapiInstance) return vapiInstance;
 
-  // Carga el SDK desde esm.sh (CDN que convierte npm → ESM nativo del browser)
-  // @ts-ignore — dynamic CDN import
-  const module = await import('https://esm.sh/@vapi-ai/web@2.5.2');
+  // new Function evita que Metro intente resolver la URL en tiempo de bundling
+  const dynamicImport = new Function('url', 'return import(url)');
+  const module = await dynamicImport('https://esm.sh/@vapi-ai/web@2.5.2');
   const VapiClass = module.default ?? module.Vapi ?? module;
   vapiInstance = new VapiClass(VAPI_PUBLIC_KEY);
   return vapiInstance;
