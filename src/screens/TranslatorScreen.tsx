@@ -261,8 +261,8 @@ const getStyles = (colors: any) => StyleSheet.create({
     paddingTop: 10,
   },
   logo: {
-    width: 56,
-    height: 56,
+    width: 72,
+    height: 72,
     opacity: colors.logoOpacity,
   },
   title: {
@@ -293,10 +293,15 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   pickerContainer: {
     backgroundColor: colors.surface,
-    borderRadius: 10,
-    borderWidth: 1,
+    borderRadius: 12,
+    borderWidth: 1.5,
     borderColor: colors.border,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 4,
+    elevation: 2,
   },
   picker: {
     height: 50,
@@ -334,7 +339,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   input: {
     backgroundColor: colors.inputBackground,
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.inputBorder,
     padding: 15,
     fontSize: 16,
@@ -342,10 +347,10 @@ const getStyles = (colors: any) => StyleSheet.create({
     textAlignVertical: 'top',
     color: colors.text,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   button: {
     backgroundColor: colors.primary,

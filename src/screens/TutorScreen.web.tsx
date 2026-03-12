@@ -1,5 +1,7 @@
-// TutorScreen para PWA/web — usa @vapi-ai/web (browser WebRTC, sin código nativo)
-// Metro selecciona este archivo automáticamente para builds web (.web.tsx > .tsx)
+// TutorScreen para PWA/web
+// Carga @vapi-ai/web desde CDN (esm.sh) para evitar el error
+// "Requiring unknown module 1051" que surge cuando Metro intenta
+// bundlear @daily-co/daily-js (que usa webpack numeric requires internamente).
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -14,7 +16,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Vapi from '@vapi-ai/web';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useNavigation } from '@react-navigation/native';
@@ -32,15 +33,6 @@ export const ITALIAN_VOICES = [
   { id: 'HLbf5OcXzzI5RP4O3I3d', name: 'Francesca', gender: 'female' as const, description: 'Elegante, professionale' },
 ];
 
-const DEFAULT_CONFIG: TutorConfig = {
-  tutorName: 'Marco',
-  voiceId: ITALIAN_VOICES[0].id,
-  voiceName: ITALIAN_VOICES[0].name,
-  gender: 'male',
-};
-
-const STORAGE_KEY = 'tutor_config_v1';
-
 interface TutorConfig {
   tutorName: string;
   voiceId: string;
@@ -55,15 +47,14 @@ interface TranscriptMessage {
   text: string;
 }
 
-// ─── Instancia Vapi singleton ─────────────────────────────────────────────────
-let vapiInstance: Vapi | null = null;
+const DEFAULT_CONFIG: TutorConfig = {
+  tutorName: 'Marco',
+  voiceId: ITALIAN_VOICES[0].id,
+  voiceName: ITALIAN_VOICES[0].name,
+  gender: 'male',
+};
 
-function getVapi(): Vapi {
-  if (!vapiInstance) {
-    vapiInstance = new Vapi(VAPI_PUBLIC_KEY);
-  }
-  return vapiInstance;
-}
+const STORAGE_KEY = 'tutor_config_v1';
 
 function buildSystemPrompt(tutorName: string): string {
   return `Sei ${tutorName}, un tutor di italiano amichevole e paziente. Il tuo compito è aiutare l'utente a praticare l'italiano parlato.
@@ -77,6 +68,20 @@ Regole fondamentali:
 - Ogni 4-5 scambi, dai un breve incoraggiamento sui progressi
 
 Se l'utente è principiante (A1-A2), puoi dare brevi spiegazioni in spagnolo o inglese solo quando strettamente necessario, poi torna subito all'italiano.`;
+}
+
+// ─── Carga dinámica de Vapi desde CDN (evita Metro bundling de @daily-co/daily-js) ──
+let vapiInstance: any = null;
+
+async function getVapi(): Promise<any> {
+  if (vapiInstance) return vapiInstance;
+
+  // Carga el SDK desde esm.sh (CDN que convierte npm → ESM nativo del browser)
+  // @ts-ignore — dynamic CDN import
+  const module = await import('https://esm.sh/@vapi-ai/web@2.5.2');
+  const VapiClass = module.default ?? module.Vapi ?? module;
+  vapiInstance = new VapiClass(VAPI_PUBLIC_KEY);
+  return vapiInstance;
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
@@ -96,16 +101,18 @@ export default function TutorScreen() {
   const [sessionSeconds, setSessionSeconds] = useState(0);
   const [minutesUsed, setMinutesUsed] = useState(0);
   const [error, setError] = useState('');
+  const [sdkLoading, setSdkLoading] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionStartRef = useRef<number>(0);
   const scrollRef = useRef<ScrollView>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const listenersAttached = useRef(false);
   const styles = getStyles(colors);
 
   const minutesRemaining = Math.max(0, minuteLimit - minutesUsed);
 
-  // ─── Cargar config guardada + minutos usados ──────────────────────────────
+  // ─── Cargar config + minutos usados ──────────────────────────────────────
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then(val => {
       if (val) {
@@ -119,13 +126,13 @@ export default function TutorScreen() {
     }
   }, [userId]);
 
-  // ─── Animación de pulso cuando habla el tutor ─────────────────────────────
+  // ─── Animación de pulso (useNativeDriver: false para web) ─────────────────
   useEffect(() => {
     if (isTutorSpeaking) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.3, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1.3, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
         ])
       ).start();
     } else {
@@ -152,13 +159,21 @@ export default function TutorScreen() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [callStatus, minutesRemaining]);
 
-  // ─── Registrar eventos Vapi ───────────────────────────────────────────────
-  useEffect(() => {
-    const vapi = getVapi();
+  // ─── Guardar config ───────────────────────────────────────────────────────
+  const saveConfig = useCallback(async () => {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(editingConfig));
+    setConfig(editingConfig);
+    setShowConfig(false);
+  }, [editingConfig]);
 
-    const onCallStart = () => { setCallStatus('active'); setError(''); };
+  // ─── Helpers para eventos Vapi ────────────────────────────────────────────
+  const attachListeners = useCallback((vapi: any) => {
+    if (listenersAttached.current) return;
+    listenersAttached.current = true;
 
-    const onCallEnd = async () => {
+    vapi.on('call-start', () => { setCallStatus('active'); setError(''); });
+
+    vapi.on('call-end', async () => {
       setCallStatus('idle');
       setIsTutorSpeaking(false);
       if (userId && sessionStartRef.current > 0) {
@@ -170,47 +185,24 @@ export default function TutorScreen() {
           setMinutesUsed(updated);
         }
       }
-    };
+    });
 
-    const onSpeechStart = () => setIsTutorSpeaking(true);
-    const onSpeechEnd = () => setIsTutorSpeaking(false);
+    vapi.on('speech-start', () => setIsTutorSpeaking(true));
+    vapi.on('speech-end', () => setIsTutorSpeaking(false));
 
-    const onMessage = (msg: any) => {
+    vapi.on('message', (msg: any) => {
       if (msg.type === 'transcript' && msg.transcriptType === 'final') {
         setTranscript(prev => [...prev, { role: msg.role, text: msg.transcript }]);
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
       }
-    };
+    });
 
-    const onError = (err: any) => {
+    vapi.on('error', (err: any) => {
       console.error('[Vapi Web]', err);
       setError(err?.message ?? 'Errore durante la chiamata');
       setCallStatus('idle');
-    };
-
-    vapi.on('call-start', onCallStart);
-    vapi.on('call-end', onCallEnd);
-    vapi.on('speech-start', onSpeechStart);
-    vapi.on('speech-end', onSpeechEnd);
-    vapi.on('message', onMessage);
-    vapi.on('error', onError);
-
-    return () => {
-      vapi.off('call-start', onCallStart);
-      vapi.off('call-end', onCallEnd);
-      vapi.off('speech-start', onSpeechStart);
-      vapi.off('speech-end', onSpeechEnd);
-      vapi.off('message', onMessage);
-      vapi.off('error', onError);
-    };
-  }, []);
-
-  // ─── Guardar config ───────────────────────────────────────────────────────
-  const saveConfig = useCallback(async () => {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(editingConfig));
-    setConfig(editingConfig);
-    setShowConfig(false);
-  }, [editingConfig]);
+    });
+  }, [userId]);
 
   // ─── Iniciar llamada ──────────────────────────────────────────────────────
   const startCall = useCallback(async () => {
@@ -219,7 +211,7 @@ export default function TutorScreen() {
       return;
     }
 
-    // Solicitar permiso de micrófono explícitamente en web
+    // Solicitar permiso de micrófono
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
@@ -230,9 +222,13 @@ export default function TutorScreen() {
     setCallStatus('connecting');
     setTranscript([]);
     setError('');
+    setSdkLoading(true);
 
     try {
-      const vapi = getVapi();
+      const vapi = await getVapi();
+      attachListeners(vapi);
+      setSdkLoading(false);
+
       await vapi.start(VAPI_ASSISTANT_ID, {
         assistantOverrides: {
           firstMessage: `Ciao! Sono ${config.tutorName}. Di cosa vorresti parlare oggi?`,
@@ -245,16 +241,17 @@ export default function TutorScreen() {
         },
       } as any);
     } catch (err: any) {
+      setSdkLoading(false);
       setError(err?.message ?? 'Impossibile avviare la conversazione');
       setCallStatus('idle');
     }
-  }, [config, minutesRemaining, minuteLimit]);
+  }, [config, minutesRemaining, minuteLimit, attachListeners]);
 
   // ─── Terminar llamada ─────────────────────────────────────────────────────
   const endCall = useCallback(async () => {
     setCallStatus('ending');
     try {
-      const vapi = getVapi();
+      const vapi = await getVapi();
       vapi.stop();
     } catch {
       setCallStatus('idle');
@@ -410,10 +407,12 @@ export default function TutorScreen() {
             {isTutorSpeaking ? '🎙 Sta parlando...' : '👂 In ascolto...'}
           </Text>
         )}
-        {callStatus === 'connecting' && (
+        {(callStatus === 'connecting' || sdkLoading) && (
           <View style={styles.connectingRow}>
             <ActivityIndicator size="small" color="#667eea" />
-            <Text style={styles.connectingText}>Connessione in corso...</Text>
+            <Text style={styles.connectingText}>
+              {sdkLoading ? 'Caricamento SDK...' : 'Connessione in corso...'}
+            </Text>
           </View>
         )}
       </View>
@@ -430,7 +429,7 @@ export default function TutorScreen() {
 
       {/* Transcript */}
       {transcript.length > 0 && (
-        <ScrollView ref={scrollRef} style={styles.transcriptBox} contentContainerStyle={styles.transcriptContent} showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} style={styles.transcriptBox} contentContainerStyle={styles.transcriptContent}>
           {transcript.map((msg, i) => (
             <View key={i} style={[styles.bubble, msg.role === 'user' ? styles.bubbleUser : styles.bubbleTutor]}>
               <Text style={[styles.bubbleText, msg.role === 'user' ? styles.bubbleTextUser : styles.bubbleTextTutor]}>
@@ -486,7 +485,6 @@ export default function TutorScreen() {
   );
 }
 
-// ─── Estilos (idénticos al nativo) ────────────────────────────────────────────
 const getStyles = (colors: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
@@ -535,7 +533,7 @@ const getStyles = (colors: any) =>
     configHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 },
     configTitle: { fontSize: 22, fontWeight: 'bold', color: colors.text },
     configLabel: { fontSize: 14, fontWeight: '600', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 20 },
-    configInput: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 16, height: 52, fontSize: 16, color: colors.text },
+    configInput: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1.5, borderColor: colors.border, paddingHorizontal: 16, height: 52, fontSize: 16, color: colors.text },
     genderRow: { flexDirection: 'row', gap: 12 },
     genderChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 12, borderWidth: 2, borderColor: colors.border, backgroundColor: colors.surface },
     genderChipSelected: { backgroundColor: '#667eea', borderColor: '#667eea' },

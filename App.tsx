@@ -70,26 +70,32 @@ function TutorTab() {
   );
 }
 
-// Token cache para Clerk usando expo-secure-store
-const tokenCache = {
-  async getToken(key: string) {
-    try {
-      return await SecureStore.getItemAsync(key);
-    } catch {
-      return null;
+// Token cache para Clerk:
+// - Web: usa localStorage (expo-secure-store no funciona en browser)
+// - Nativo: usa expo-secure-store (más seguro)
+const tokenCache = Platform.OS === 'web'
+  ? {
+      async getToken(key: string) {
+        try { return localStorage.getItem(key); } catch { return null; }
+      },
+      async saveToken(key: string, value: string) {
+        try { localStorage.setItem(key, value); } catch {}
+      },
+      async clearToken(key: string) {
+        try { localStorage.removeItem(key); } catch {}
+      },
     }
-  },
-  async saveToken(key: string, value: string) {
-    try {
-      await SecureStore.setItemAsync(key, value);
-    } catch {}
-  },
-  async clearToken(key: string) {
-    try {
-      await SecureStore.deleteItemAsync(key);
-    } catch {}
-  },
-};
+  : {
+      async getToken(key: string) {
+        try { return await SecureStore.getItemAsync(key); } catch { return null; }
+      },
+      async saveToken(key: string, value: string) {
+        try { await SecureStore.setItemAsync(key, value); } catch {}
+      },
+      async clearToken(key: string) {
+        try { await SecureStore.deleteItemAsync(key); } catch {}
+      },
+    };
 
 // ─── Tabs principales (sin cambios respecto a v1.2.0) ───────────────────────
 function MainTabs() {

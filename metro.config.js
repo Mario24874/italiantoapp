@@ -15,15 +15,11 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
         type: 'sourceFile',
       };
     }
-    // Force @daily-co/daily-js to its self-contained ESM bundle on web
-    // (the CJS main entry uses internal chunk requires that Metro can't resolve)
-    if (moduleName === '@daily-co/daily-js') {
-      return {
-        filePath: path.resolve(__dirname, 'node_modules/@daily-co/daily-js/dist/daily-esm.js'),
-        type: 'sourceFile',
-      };
-    }
     const emptyModules = [
+      // @vapi-ai/web y @daily-co/daily-js se cargan desde CDN en TutorScreen.web.tsx
+      // (sus bundles internos usan webpack numeric requires que Metro no puede resolver)
+      '@vapi-ai/web',
+      '@daily-co/daily-js',
       '@daily-co/react-native-daily-js',
       '@daily-co/react-native-webrtc',
       '@react-native-voice/voice',
