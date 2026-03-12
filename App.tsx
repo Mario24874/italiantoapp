@@ -6,12 +6,14 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { View, Text, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { ClerkProvider } from '@clerk/clerk-expo';
 
 import TranslatorScreen from './src/screens/TranslatorScreen';
-import TutorScreen from './src/screens/TutorScreen';
+// TutorScreen carga lazy para evitar que Vapi/WebRTC inicialice al arrancar la app
+const TutorScreen = React.lazy(() => import('./src/screens/TutorScreen'));
 import ConjugatorScreen from './src/screens/ConjugatorScreen';
 import PronunciationScreen from './src/screens/PronunciationScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
@@ -26,6 +28,47 @@ import { Onboarding } from './src/components/Onboarding';
 
 const Tab = createBottomTabNavigator();
 const RootStack = createNativeStackNavigator();
+
+// ─── Error boundary para TutorScreen (captura crash de Vapi/WebRTC) ──────────
+class TutorErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: string }
+> {
+  state = { hasError: false, error: '' };
+  static getDerivedStateFromError(e: any) {
+    return { hasError: true, error: e?.message ?? 'Error desconocido' };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>
+            Tutor AI no disponible
+          </Text>
+          <Text style={{ textAlign: 'center', color: '#666' }}>
+            {this.state.error}
+          </Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Wrapper que carga TutorScreen de forma lazy con Suspense + ErrorBoundary
+function TutorTab() {
+  return (
+    <TutorErrorBoundary>
+      <React.Suspense fallback={
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" />
+        </View>
+      }>
+        <TutorScreen />
+      </React.Suspense>
+    </TutorErrorBoundary>
+  );
+}
 
 // Token cache para Clerk usando expo-secure-store
 const tokenCache = {
@@ -99,7 +142,7 @@ function MainTabs() {
         <Tab.Screen name="Translator" component={TranslatorScreen} options={{ title: 'Traduttore' }} />
         <Tab.Screen name="Conjugator" component={ConjugatorScreen} options={{ title: 'Coniugatore' }} />
         <Tab.Screen name="Pronunciation" component={PronunciationScreen} options={{ title: 'Pronuncia' }} />
-        <Tab.Screen name="Tutor" component={TutorScreen} options={{ title: 'Tutor AI' }} />
+        <Tab.Screen name="Tutor" component={TutorTab} options={{ title: 'Tutor AI' }} />
         <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Impostazioni' }} />
       </Tab.Navigator>
     </>
