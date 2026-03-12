@@ -1,0 +1,25 @@
+{
+  "name": "ItaliAnto",
+  "short_name": "ItaliAnto",
+  "description": "Aprende italiano: traduce, conjuga, practica pronunciación y habla con el Tutor AI",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#2e7d32",
+  "theme_color": "#2e7d32",
+  "orientation": "portrait-primary",
+  "categories": ["education"],
+  "icons": [
+    {
+      "src": "/assets/Logo_ItaliAnto.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/Logo_ItaliAnto.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

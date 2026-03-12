@@ -38,7 +38,15 @@ export default {
     },
     web: {
       favicon: "./assets/favicon.png",
-      bundler: "metro"
+      bundler: "metro",
+      name: "ItaliAnto",
+      shortName: "ItaliAnto",
+      description: "Aprende italiano: traduce, conjuga, practica pronunciación y habla con el Tutor AI",
+      themeColor: "#2e7d32",
+      backgroundColor: "#2e7d32",
+      manifest: {
+        orientation: "portrait"
+      }
     },
     updates: {
       url: "https://u.expo.dev/76bffcff-51b7-465e-8239-d5cb8fce4413"
