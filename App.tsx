@@ -127,15 +127,24 @@ function MainTabs() {
           tabBarInactiveTintColor: colors.textSecondary,
           tabBarStyle: {
             backgroundColor: colors.surface,
-            borderTopColor: colors.border,
-            height: 60,
-            paddingBottom: 8,
+            borderTopWidth: 0,
+            height: 68,
+            paddingBottom: 10,
             paddingTop: 8,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -3 },
+            shadowOpacity: 0.08,
+            shadowRadius: 12,
+            elevation: 16,
           },
           headerShown: false,
           tabBarLabelStyle: {
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: '600',
+            marginTop: 2,
+          },
+          tabBarIconStyle: {
+            marginTop: 2,
           },
         })}
       >

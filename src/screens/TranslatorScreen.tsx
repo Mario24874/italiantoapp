@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Image
+  Image,
+  Clipboard,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -87,6 +88,25 @@ export default function TranslatorScreen() {
     }
   };
 
+  const getLanguageFlag = (lang: Language): string => {
+    switch (lang) {
+      case 'es': return '🇪🇸';
+      case 'en': return '🇬🇧';
+      case 'it': return '🇮🇹';
+      default: return '';
+    }
+  };
+
+  const handleCopy = () => {
+    if (!translatedText) return;
+    if (Platform.OS === 'web') {
+      (navigator as any).clipboard?.writeText(translatedText);
+    } else {
+      Clipboard.setString(translatedText);
+    }
+    showSuccess('Testo copiato!');
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -106,7 +126,9 @@ export default function TranslatorScreen() {
         <View style={styles.languageContainer}>
           {/* Source language */}
           <View style={styles.languageBox}>
-            <Text style={styles.label}>Da:</Text>
+            <Text style={styles.label}>
+              {getLanguageFlag(sourceLanguage)} {getLanguageName(sourceLanguage)}
+            </Text>
             <View style={styles.pickerContainer}>
               <Picker
                 selectedValue={sourceLanguage}
@@ -119,24 +141,23 @@ export default function TranslatorScreen() {
                 }}
                 style={styles.picker}
               >
-                <Picker.Item label="Spagnolo" value="es" />
-                <Picker.Item label="Inglese" value="en" />
-                <Picker.Item label="Italiano" value="it" />
+                <Picker.Item label="🇪🇸 Spagnolo" value="es" />
+                <Picker.Item label="🇬🇧 Inglese" value="en" />
+                <Picker.Item label="🇮🇹 Italiano" value="it" />
               </Picker>
             </View>
           </View>
 
           {/* Swap button */}
-          <TouchableOpacity
-            style={styles.swapButton}
-            onPress={handleSwapLanguages}
-          >
-            <Ionicons name="swap-horizontal" size={28} color={colors.primary} />
+          <TouchableOpacity style={styles.swapButton} onPress={handleSwapLanguages} activeOpacity={0.8}>
+            <Ionicons name="swap-horizontal" size={22} color="#fff" />
           </TouchableOpacity>
 
           {/* Target language */}
           <View style={styles.languageBox}>
-            <Text style={styles.label}>A:</Text>
+            <Text style={styles.label}>
+              {getLanguageFlag(targetLanguage)} {getLanguageName(targetLanguage)}
+            </Text>
             <View style={styles.pickerContainer}>
               <Picker
                 selectedValue={targetLanguage}
@@ -149,9 +170,9 @@ export default function TranslatorScreen() {
                 }}
                 style={styles.picker}
               >
-                <Picker.Item label="Spagnolo" value="es" />
-                <Picker.Item label="Inglese" value="en" />
-                <Picker.Item label="Italiano" value="it" />
+                <Picker.Item label="🇪🇸 Spagnolo" value="es" />
+                <Picker.Item label="🇬🇧 Inglese" value="en" />
+                <Picker.Item label="🇮🇹 Italiano" value="it" />
               </Picker>
             </View>
           </View>
@@ -204,12 +225,7 @@ export default function TranslatorScreen() {
           <View style={styles.resultContainer}>
             <View style={styles.resultHeader}>
               <Text style={styles.resultLabel}>{getLanguageName(targetLanguage)}</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  // En una app real, esto copiaría al portapapeles
-                  showSuccess('Testo copiato!');
-                }}
-              >
+              <TouchableOpacity onPress={handleCopy}>
                 <Ionicons name="copy-outline" size={20} color={colors.primary} />
               </TouchableOpacity>
             </View>
@@ -287,9 +303,19 @@ const getStyles = (colors: any) => StyleSheet.create({
     color: colors.text,
   },
   swapButton: {
-    padding: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginHorizontal: 10,
-    marginTop: 20,
+    marginTop: 22,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   inputContainer: {
     marginBottom: 20,
@@ -307,28 +333,33 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   input: {
     backgroundColor: colors.inputBackground,
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.inputBorder,
     padding: 15,
     fontSize: 16,
-    minHeight: 100,
+    minHeight: 110,
     textAlignVertical: 'top',
     color: colors.text,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   button: {
     backgroundColor: colors.primary,
-    borderRadius: 25,
-    padding: 15,
+    borderRadius: 16,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    elevation: 5,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
   },
   buttonDisabled: {
     backgroundColor: colors.buttonDisabled,
@@ -345,11 +376,13 @@ const getStyles = (colors: any) => StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: colors.border,
-    elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   resultHeader: {
     flexDirection: 'row',
