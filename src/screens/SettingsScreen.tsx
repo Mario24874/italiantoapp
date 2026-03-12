@@ -123,7 +123,7 @@ export default function SettingsScreen() {
         <ThemeToggle />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Impostazioni</Text>
 
         {/* App Settings */}
@@ -318,6 +318,9 @@ const getStyles = (colors: any) => StyleSheet.create({
     width: 40,
     height: 40,
     opacity: colors.logoOpacity,
+  },
+  scrollView: {
+    flex: 1,
   },
   scrollContent: {
     padding: 20,

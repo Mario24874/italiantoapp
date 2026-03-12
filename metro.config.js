@@ -1,23 +1,31 @@
 const { getDefaultConfig } = require('expo/metro-config');
+const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
 /**
  * En web, los módulos nativos de Android/iOS no existen.
- * Los stubamos como módulos vacíos para que el bundle web compile sin errores.
- * Las implementaciones web reales van en archivos .web.ts (platform-specific).
+ * Usamos stubs reales (no {type:'empty'}) para evitar "Requiring unknown module XXXX".
  */
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (platform === 'web') {
-    const nativeOnlyModules = [
-      '@vapi-ai/react-native',
+    if (moduleName === '@vapi-ai/react-native') {
+      return {
+        filePath: path.resolve(__dirname, 'stubs/vapi-stub.js'),
+        type: 'sourceFile',
+      };
+    }
+    const emptyModules = [
       '@daily-co/react-native-daily-js',
       '@daily-co/react-native-webrtc',
       '@react-native-voice/voice',
       'react-native-background-timer',
     ];
-    if (nativeOnlyModules.includes(moduleName)) {
-      return { type: 'empty' };
+    if (emptyModules.includes(moduleName)) {
+      return {
+        filePath: path.resolve(__dirname, 'stubs/empty-module.js'),
+        type: 'sourceFile',
+      };
     }
   }
   return context.resolveRequest(context, moduleName, platform);
