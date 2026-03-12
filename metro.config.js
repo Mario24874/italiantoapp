@@ -15,6 +15,14 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
         type: 'sourceFile',
       };
     }
+    // Force @daily-co/daily-js to its self-contained ESM bundle on web
+    // (the CJS main entry uses internal chunk requires that Metro can't resolve)
+    if (moduleName === '@daily-co/daily-js') {
+      return {
+        filePath: path.resolve(__dirname, 'node_modules/@daily-co/daily-js/dist/daily-esm.js'),
+        type: 'sourceFile',
+      };
+    }
     const emptyModules = [
       '@daily-co/react-native-daily-js',
       '@daily-co/react-native-webrtc',
