@@ -6,7 +6,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { ClerkProvider } from '@clerk/clerk-expo';
@@ -217,7 +217,7 @@ function RootNavigator() {
 const CLERK_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 export default function App() {
-  const content = (
+  const inner = (
     <SafeAreaProvider>
       <ThemeProvider>
         <ToastProvider>
@@ -231,12 +231,29 @@ export default function App() {
     </SafeAreaProvider>
   );
 
-  // ClerkProvider solo se activa cuando la key está configurada en .env
-  if (CLERK_KEY) {
+  const content = CLERK_KEY ? (
+    <ClerkProvider publishableKey={CLERK_KEY} tokenCache={tokenCache}>
+      {inner}
+    </ClerkProvider>
+  ) : inner;
+
+  // En web: centrar la app como un móvil dentro de la ventana del navegador
+  if (Platform.OS === 'web') {
     return (
-      <ClerkProvider publishableKey={CLERK_KEY} tokenCache={tokenCache}>
-        {content}
-      </ClerkProvider>
+      <View style={{ flex: 1, backgroundColor: '#0f0f1a', alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{
+          flex: 1,
+          width: '100%',
+          maxWidth: 430,
+          overflow: 'hidden',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.5,
+          shadowRadius: 40,
+        }}>
+          {content}
+        </View>
+      </View>
     );
   }
 

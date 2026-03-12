@@ -28,7 +28,7 @@ const lightTheme = {
   inputBackground: '#ffffff',
   inputBorder: '#ddd',
   buttonDisabled: '#e0e0e0',
-  logoOpacity: 0.3,
+  logoOpacity: 1,
 };
 
 const darkTheme = {
@@ -50,7 +50,7 @@ const darkTheme = {
   inputBackground: '#2d2d2d',
   inputBorder: '#404040',
   buttonDisabled: '#404040',
-  logoOpacity: 0.5,
+  logoOpacity: 0.9,
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);

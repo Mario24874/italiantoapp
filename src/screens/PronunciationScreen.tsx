@@ -364,8 +364,8 @@ const getStyles = (colors: any) => StyleSheet.create({
     paddingTop: 10,
   },
   logo: {
-    width: 40,
-    height: 40,
+    width: 56,
+    height: 56,
     opacity: colors.logoOpacity,
   },
   title: {
