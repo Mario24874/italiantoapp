@@ -234,7 +234,7 @@ export default function TutorScreen() {
 
       await vapi.start(VAPI_ASSISTANT_ID, {
         firstMessage: `Ciao! Sono ${config.tutorName}. Di cosa vorresti parlare oggi?`,
-        voice: { provider: 'elevenlabs', voiceId: config.voiceId },
+        voice: { provider: '11labs', voiceId: config.voiceId },
       } as any);
     } catch (err: any) {
       setSdkLoading(false);
