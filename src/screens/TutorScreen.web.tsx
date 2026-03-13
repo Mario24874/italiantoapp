@@ -214,9 +214,15 @@ export default function TutorScreen() {
       return;
     }
 
-    // Solicitar permiso de micrófono
+    // Solicitar permiso de micrófono con echo cancellation
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
     } catch {
       setError('Permesso microfono negato. Consenti l\'accesso al microfono nelle impostazioni del browser.');
       return;
@@ -235,6 +241,7 @@ export default function TutorScreen() {
       await vapi.start(VAPI_ASSISTANT_ID, {
         firstMessage: `Ciao! Sono ${config.tutorName}. Di cosa vorresti parlare oggi?`,
         voice: { provider: '11labs', voiceId: config.voiceId },
+        transcriber: { provider: 'deepgram', model: 'nova-2', language: 'it' },
       } as any);
     } catch (err: any) {
       setSdkLoading(false);
