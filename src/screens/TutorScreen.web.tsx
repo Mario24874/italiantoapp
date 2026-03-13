@@ -308,9 +308,6 @@ export default function TutorScreen() {
         firstMessage: `Ciao! / Hello! / ¡Hola! Sono ${config.tutorName}, il tuo tutor d'italiano. In che lingua preferisci parlare? / What language do you prefer? / ¿En qué idioma prefieres hablar?`,
         voice: { provider: '11labs', voiceId: config.voiceId },
         transcriber: { provider: 'deepgram', model: 'nova-2' },
-        model: {
-          messages: [{ role: 'system', content: buildSystemPrompt(config.tutorName) }],
-        },
       } as any);
     } catch (err: any) {
       setSdkLoading(false);
