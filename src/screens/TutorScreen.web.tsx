@@ -200,8 +200,9 @@ export default function TutorScreen() {
     });
 
     vapi.on('error', (err: any) => {
-      console.error('[Vapi Web]', err);
-      setError(err?.message ?? 'Errore durante la chiamata');
+      console.error('[Vapi error full]', JSON.stringify(err, null, 2));
+      const detail = err?.error?.message ?? err?.message ?? 'Errore durante la chiamata';
+      setError(typeof detail === 'string' ? detail : JSON.stringify(detail));
       setCallStatus('idle');
     });
   }, [userId]);
@@ -231,14 +232,17 @@ export default function TutorScreen() {
       attachListeners(vapi);
       setSdkLoading(false);
 
-      await vapi.start(VAPI_ASSISTANT_ID, {
+      const overrides = {
         assistantOverrides: {
           firstMessage: `Ciao! Sono ${config.tutorName}. Di cosa vorresti parlare oggi?`,
           voice: { provider: 'elevenlabs', voiceId: config.voiceId },
         },
-      } as any);
+      };
+      console.log('[Vapi start] overrides:', JSON.stringify(overrides));
+      await vapi.start(VAPI_ASSISTANT_ID, overrides as any);
     } catch (err: any) {
       setSdkLoading(false);
+      console.error('[Vapi catch]', JSON.stringify(err, null, 2));
       setError(err?.message ?? 'Impossibile avviare la conversazione');
       setCallStatus('idle');
     }
