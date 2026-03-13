@@ -193,6 +193,7 @@ export default function App() {
             <NavigationContainer>
               <RootNavigator />
             </NavigationContainer>
+            <PWAInstallBanner />
           </AuthProvider>
         </ToastProvider>
       </ThemeProvider>
@@ -218,10 +219,8 @@ export default function App() {
           shadowOffset: { width: 0, height: 0 },
           shadowOpacity: 0.5,
           shadowRadius: 40,
-          position: 'relative' as any,
         }}>
           {content}
-          <PWAInstallBanner />
         </View>
       </View>
     );
