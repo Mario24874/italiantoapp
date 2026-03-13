@@ -235,11 +235,6 @@ export default function TutorScreen() {
         assistantOverrides: {
           firstMessage: `Ciao! Sono ${config.tutorName}. Di cosa vorresti parlare oggi?`,
           voice: { provider: '11labs', voiceId: config.voiceId },
-          model: {
-            provider: 'anthropic',
-            model: 'claude-sonnet-4-5',
-            messages: [{ role: 'system', content: buildSystemPrompt(config.tutorName) }],
-          },
         },
       } as any);
     } catch (err: any) {
