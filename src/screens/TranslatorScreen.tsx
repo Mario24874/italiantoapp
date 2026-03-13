@@ -89,6 +89,14 @@ export default function TranslatorScreen() {
   };
 
   const getLanguageFlag = (lang: Language): string => {
+    if (Platform.OS === 'web') {
+      switch (lang) {
+        case 'es': return 'ES';
+        case 'en': return 'EN';
+        case 'it': return 'IT';
+        default: return '';
+      }
+    }
     switch (lang) {
       case 'es': return '🇪🇸';
       case 'en': return '🇬🇧';
@@ -141,9 +149,9 @@ export default function TranslatorScreen() {
                 }}
                 style={styles.picker}
               >
-                <Picker.Item label="🇪🇸 Spagnolo" value="es" />
-                <Picker.Item label="🇬🇧 Inglese" value="en" />
-                <Picker.Item label="🇮🇹 Italiano" value="it" />
+                <Picker.Item label={Platform.OS === 'web' ? 'ES Spagnolo' : '🇪🇸 Spagnolo'} value="es" />
+                <Picker.Item label={Platform.OS === 'web' ? 'EN Inglese' : '🇬🇧 Inglese'} value="en" />
+                <Picker.Item label={Platform.OS === 'web' ? 'IT Italiano' : '🇮🇹 Italiano'} value="it" />
               </Picker>
             </View>
           </View>
@@ -170,9 +178,9 @@ export default function TranslatorScreen() {
                 }}
                 style={styles.picker}
               >
-                <Picker.Item label="🇪🇸 Spagnolo" value="es" />
-                <Picker.Item label="🇬🇧 Inglese" value="en" />
-                <Picker.Item label="🇮🇹 Italiano" value="it" />
+                <Picker.Item label={Platform.OS === 'web' ? 'ES Spagnolo' : '🇪🇸 Spagnolo'} value="es" />
+                <Picker.Item label={Platform.OS === 'web' ? 'EN Inglese' : '🇬🇧 Inglese'} value="en" />
+                <Picker.Item label={Platform.OS === 'web' ? 'IT Italiano' : '🇮🇹 Italiano'} value="it" />
               </Picker>
             </View>
           </View>

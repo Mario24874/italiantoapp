@@ -24,6 +24,9 @@ import { ToastProvider } from './src/context/ToastContext';
 import { AuthProvider } from './src/context/AuthContext';
 import { SplashScreen } from './src/components/SplashScreen';
 import { Onboarding } from './src/components/Onboarding';
+import { registerServiceWorker } from './src/utils/registerServiceWorker';
+
+registerServiceWorker();
 
 const Tab = createBottomTabNavigator();
 const RootStack = createNativeStackNavigator();

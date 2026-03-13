@@ -10,17 +10,23 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { useSignIn } from '@clerk/clerk-expo';
+import { useSignIn, useOAuth } from '@clerk/clerk-expo';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function SignInScreen() {
   const { signIn, setActive, isLoaded } = useSignIn();
   const navigation = useNavigation<any>();
   const { colors } = useTheme();
   const { isSignedIn } = useAuth();
+
+  const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,6 +42,23 @@ export default function SignInScreen() {
   }, [isSignedIn]);
 
   const styles = getStyles(colors);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      const redirectUrl = Platform.OS === 'web'
+        ? window.location.origin
+        : Linking.createURL('/oauth-native-callback', { scheme: 'italiantoapp' });
+
+      const { createdSessionId, setActive: setActiveOAuth } = await startOAuthFlow({ redirectUrl });
+
+      if (createdSessionId && setActiveOAuth) {
+        await setActiveOAuth({ session: createdSessionId });
+        navigation.goBack();
+      }
+    } catch (err: any) {
+      setError(err?.errors?.[0]?.message ?? 'Error con Google Sign-In');
+    }
+  };
 
   const handleSignIn = async () => {
     if (!isLoaded || !signIn) return;
@@ -140,6 +163,21 @@ export default function SignInScreen() {
               <Text style={styles.errorText}>{error}</Text>
             </View>
           ) : null}
+
+          <TouchableOpacity
+            style={styles.googleButton}
+            onPress={handleGoogleSignIn}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="logo-google" size={20} color="#4285F4" style={styles.inputIcon} />
+            <Text style={styles.googleButtonText}>Continua con Google</Text>
+          </TouchableOpacity>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>oppure</Text>
+            <View style={styles.dividerLine} />
+          </View>
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
@@ -250,6 +288,38 @@ const getStyles = (colors: any) =>
       color: '#c62828',
       fontSize: 13,
       flex: 1,
+    },
+    googleButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      height: 56,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginTop: 8,
+      gap: 10,
+    },
+    googleButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    divider: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: 4,
+      gap: 10,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.border,
+    },
+    dividerText: {
+      fontSize: 13,
+      color: colors.textSecondary,
     },
     button: {
       backgroundColor: '#2e7d32',

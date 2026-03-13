@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -64,8 +65,39 @@ export default function PaywallScreen() {
   const [selectedPlan, setSelectedPlan] = useState<PlanId>('annuale');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
+
+  // Detect when premium becomes true during polling
+  useEffect(() => {
+    if (isPremium && pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+      setSuccess(true);
+      setLoading(false);
+    }
+  }, [isPremium]);
 
   const styles = getStyles(colors);
+
+  const startPolling = () => {
+    let attempts = 0;
+    pollIntervalRef.current = setInterval(async () => {
+      attempts++;
+      await refreshSubscription();
+      if (attempts >= 30) {
+        clearInterval(pollIntervalRef.current!);
+        pollIntervalRef.current = null;
+        setLoading(false);
+      }
+    }, 3000);
+  };
 
   const handleSubscribe = async () => {
     if (!isSignedIn) {
@@ -116,34 +148,76 @@ export default function PaywallScreen() {
         throw new Error(data.error ?? `Errore HTTP ${response.status}`);
       }
 
-      // Open Stripe Checkout in the in-app browser
-      const result = await WebBrowser.openAuthSessionAsync(
-        data.url,
-        'italiantoapp://'
-      );
+      if (Platform.OS === 'web') {
+        // Web: open Stripe in a new tab and poll for subscription completion
+        window.open(data.url, '_blank');
+        startPolling();
+        // Keep loading=true while polling
+      } else {
+        // Native: use in-app browser with deep link redirect
+        const result = await WebBrowser.openAuthSessionAsync(
+          data.url,
+          'italiantoapp://'
+        );
 
-      if (result.type === 'success' && result.url.includes('status=success')) {
-        await refreshSubscription();
-        showSuccess('Abbonamento attivato! Benvenuto in Premium 🎉');
-        navigation.goBack();
-      } else if (result.type === 'cancel' || result.url?.includes('status=cancel')) {
-        // User closed or cancelled — no error, just stay on screen
+        if (result.type === 'success' && result.url?.includes('status=success')) {
+          await refreshSubscription();
+          setSuccess(true);
+        } else if (result.type === 'cancel' || result.url?.includes('status=cancel')) {
+          // User closed or cancelled — no error
+        }
+        setLoading(false);
       }
     } catch (err: any) {
       const msg = err?.message ?? 'Errore imprevisto';
       setError(msg);
       showError(msg);
-    } finally {
       setLoading(false);
     }
   };
 
+  if (success) {
+    return (
+      <View style={[styles.container, styles.successContainer]}>
+        <View style={styles.successContent}>
+          <View style={styles.successIcon}>
+            <Ionicons name="checkmark-circle" size={80} color="#2e7d32" />
+          </View>
+          <Text style={styles.successTitle}>Benvenuto in Premium!</Text>
+          <Text style={styles.successSubtitle}>
+            Il tuo abbonamento è attivo. Goditi tutte le funzionalità di ItaliantoApp.
+          </Text>
+          <TouchableOpacity
+            style={styles.successButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.successButtonText}>Inizia ad imparare</Text>
+            <Ionicons name="arrow-forward" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {/* Close button */}
-      <TouchableOpacity style={styles.closeButton} onPress={() => navigation.goBack()}>
+      <TouchableOpacity style={styles.closeButton} onPress={() => {
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+        navigation.goBack();
+      }}>
         <Ionicons name="close" size={28} color={colors.text} />
       </TouchableOpacity>
+
+      {loading && Platform.OS === 'web' && (
+        <View style={styles.pollingOverlay}>
+          <ActivityIndicator size="large" color="#667eea" />
+          <Text style={styles.pollingText}>
+            Completa il pagamento nel browser...{'\n'}La pagina si aggiornerà in automatico.
+          </Text>
+        </View>
+      )}
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -516,6 +590,65 @@ const getStyles = (colors: any) =>
       color: '#fff',
       fontSize: 18,
       fontWeight: '700',
+    },
+    successContainer: {
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    successContent: {
+      padding: 32,
+      alignItems: 'center',
+      gap: 16,
+    },
+    successIcon: {
+      marginBottom: 8,
+    },
+    successTitle: {
+      fontSize: 26,
+      fontWeight: 'bold',
+      color: colors.text,
+      textAlign: 'center',
+    },
+    successSubtitle: {
+      fontSize: 15,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 22,
+    },
+    successButton: {
+      flexDirection: 'row',
+      backgroundColor: '#2e7d32',
+      borderRadius: 16,
+      height: 58,
+      paddingHorizontal: 32,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginTop: 8,
+      gap: 10,
+    },
+    successButtonText: {
+      color: '#fff',
+      fontSize: 17,
+      fontWeight: '700',
+    },
+    pollingOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: colors.background + 'ee',
+      zIndex: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 20,
+      padding: 32,
+    },
+    pollingText: {
+      fontSize: 15,
+      color: colors.text,
+      textAlign: 'center',
+      lineHeight: 22,
     },
     legal: {
       textAlign: 'center',
