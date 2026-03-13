@@ -243,6 +243,7 @@ export default function TutorScreen() {
   const attachListeners = useCallback((vapi: any) => {
     if (listenersAttached.current) return;
     listenersAttached.current = true;
+    vapi.removeAllListeners(); // evita listeners duplicados en llamadas sucesivas
 
     vapi.on('call-start', () => { setCallStatus('active'); setError(''); });
 
@@ -250,6 +251,7 @@ export default function TutorScreen() {
       setCallStatus('idle');
       setIsTutorSpeaking(false);
       setUserSpeaking(false);
+      listenersAttached.current = false; // permite re-attachar en la próxima llamada
       // Limpiar análisis de micrófono
       if (micPollRef.current) clearInterval(micPollRef.current);
       if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; }
@@ -329,7 +331,7 @@ export default function TutorScreen() {
       setSdkLoading(false);
 
       await vapi.start(VAPI_ASSISTANT_ID, {
-        firstMessage: `Ciao! / Hello! / ¡Hola! Sono ${config.tutorName}, il tuo tutor d'italiano. In che lingua preferisci parlare? / What language do you prefer? / ¿En qué idioma prefieres hablar?`,
+        firstMessage: `Ciao! Sono ${config.tutorName}. Parli italiano, español o English?`,
         voice: { provider: '11labs', voiceId: config.voiceId },
         transcriber: { provider: 'deepgram', model: 'nova-2' },
       } as any);
