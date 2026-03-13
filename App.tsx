@@ -25,6 +25,7 @@ import { AuthProvider } from './src/context/AuthContext';
 import { SplashScreen } from './src/components/SplashScreen';
 import { Onboarding } from './src/components/Onboarding';
 import { registerServiceWorker } from './src/utils/registerServiceWorker';
+import PWAInstallBanner from './src/components/PWAInstallBanner';
 
 registerServiceWorker();
 
@@ -217,8 +218,10 @@ export default function App() {
           shadowOffset: { width: 0, height: 0 },
           shadowOpacity: 0.5,
           shadowRadius: 40,
+          position: 'relative' as any,
         }}>
           {content}
+          <PWAInstallBanner />
         </View>
       </View>
     );

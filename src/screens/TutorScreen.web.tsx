@@ -183,7 +183,7 @@ export default function TutorScreen() {
   const micPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const styles = getStyles(colors);
 
-  const minutesRemaining = Math.max(0, minuteLimit - minutesUsed);
+  const minutesRemaining = Math.max(0, Math.floor(minuteLimit - minutesUsed));
 
   // ─── Cargar config + minutos usados ──────────────────────────────────────
   useEffect(() => {
