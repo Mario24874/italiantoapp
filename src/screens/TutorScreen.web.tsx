@@ -226,16 +226,17 @@ export default function TutorScreen() {
     setError('');
     setSdkLoading(true);
 
-    console.log('[Vapi Debug] KEY:', VAPI_PUBLIC_KEY ? VAPI_PUBLIC_KEY.slice(0, 8) + '...' : 'MISSING');
-    console.log('[Vapi Debug] ASSISTANT_ID:', VAPI_ASSISTANT_ID || 'MISSING');
-
     try {
       const vapi = await getVapi();
       attachListeners(vapi);
       setSdkLoading(false);
 
-      // DEBUG: llamada sin overrides para aislar el 400
-      await vapi.start(VAPI_ASSISTANT_ID);
+      await vapi.start(VAPI_ASSISTANT_ID, {
+        assistantOverrides: {
+          firstMessage: `Ciao! Sono ${config.tutorName}. Di cosa vorresti parlare oggi?`,
+          voice: { provider: 'elevenlabs', voiceId: config.voiceId },
+        },
+      } as any);
     } catch (err: any) {
       setSdkLoading(false);
       setError(err?.message ?? 'Impossibile avviare la conversazione');
