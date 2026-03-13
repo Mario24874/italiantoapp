@@ -333,7 +333,7 @@ export default function TutorScreen() {
       await vapi.start(VAPI_ASSISTANT_ID, {
         firstMessage: `Ciao! Sono ${config.tutorName}. Parli italiano, español o English?`,
         voice: { provider: '11labs', voiceId: config.voiceId },
-        transcriber: { provider: 'deepgram', model: 'nova-2' },
+        transcriber: { provider: 'deepgram', model: 'nova-2', language: 'multi' },
       } as any);
     } catch (err: any) {
       setSdkLoading(false);
