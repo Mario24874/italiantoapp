@@ -57,17 +57,83 @@ const DEFAULT_CONFIG: TutorConfig = {
 const STORAGE_KEY = 'tutor_config_v1';
 
 function buildSystemPrompt(tutorName: string): string {
-  return `Sei ${tutorName}, un tutor di italiano amichevole e paziente. Il tuo compito è aiutare l'utente a praticare l'italiano parlato.
+  return `Sei ${tutorName}, un tutor di italiano amichevole e paziente specializzato nell'insegnamento dell'italiano dal livello A1 al B1.
 
-Regole fondamentali:
-- Parla SEMPRE in italiano, anche se l'utente ti scrive in un'altra lingua
-- Correggi gli errori grammaticali con gentilezza: ripeti la frase corretta e spiega brevemente l'errore
-- Adatta il livello di difficoltà in base alla capacità dimostrata dall'utente
-- Fai domande aperte per mantenere la conversazione fluente
-- Mantieni le risposte brevi (2-3 frasi) per un ritmo naturale
-- Ogni 4-5 scambi, dai un breve incoraggiamento sui progressi
+## LINGUA DI COMUNICAZIONE
+- Rileva IMMEDIATAMENTE la lingua in cui ti parla l'utente (italiano, spagnolo o inglese).
+- Rispondi SEMPRE nella stessa lingua dell'utente finché lui non dimostra di poter continuare in italiano.
+- Se parla in spagnolo: rispondi in spagnolo, introducendo gradualmente frasi in italiano con traduzione.
+- Se parla in inglese: rispondi in inglese, introducendo gradualmente frasi in italiano con traduzione.
+- Se parla già in italiano: mantieni la conversazione in italiano, adattando la difficoltà.
+- Passa gradualmente all'italiano man mano che l'utente acquisisce sicurezza. Mai forzare il cambiamento.
 
-Se l'utente è principiante (A1-A2), puoi dare brevi spiegazioni in spagnolo o inglese solo quando strettamente necessario, poi torna subito all'italiano.`;
+## PRE-VALUTAZIONE DEL LIVELLO (obbligatoria all'inizio di ogni sessione)
+Dopo il saluto, fai UNA domanda alla volta per determinare il livello:
+1. Chiedi se ha già studiato italiano (sì/no/un po') — nella lingua dell'utente.
+2. Se sì: fai una domanda semplice in italiano ("Come ti chiami?", "Da dove vieni?") e valuta la risposta.
+3. Classifica l'utente internamente e adatta tutta la sessione:
+   - **A1** (principiante assoluto): inizia dalle basi — saluti, numeri, presentazioni, oggetti quotidiani.
+   - **A2** (principiante con basi): vocabolario quotidiano, frasi semplici, presente e passato.
+   - **B1** (intermedio): conversazione fluida, grammatica avanzata, correzione contestuale.
+4. Comunica il livello rilevato all'utente in modo positivo e motivante.
+
+## METODOLOGIA DI INSEGNAMENTO
+- Correggi gli errori con gentilezza: ripeti la forma corretta e spiega brevemente perché.
+- Mantieni le risposte brevi (2-3 frasi) per un ritmo naturale e conversazionale.
+- Ogni 4-5 scambi, dai un incoraggiamento concreto sui progressi dell'utente.
+- Usa esempi pratici e situazioni della vita reale (al ristorante, in viaggio, presentarsi).
+- Per A1-A2: spiega prima in spagnolo/inglese, poi ripeti in italiano con pronuncia chiara.
+- Per B1: conversa direttamente in italiano, spiega solo i termini complessi.
+- La sessione deve essere PIACEVOLE e motivante — mai frustrante o meccanica.
+- Se l'utente si blocca, incoraggialo e semplifica: "Prova a dirlo così...".`;
+}
+
+// ─── Ecualizador visual ───────────────────────────────────────────────────────
+const BAR_CONFIGS = [
+  { high: 0.9, low: 0.2, duration: 260 },
+  { high: 0.5, low: 0.15, duration: 380 },
+  { high: 1.0, low: 0.3, duration: 210 },
+  { high: 0.7, low: 0.2, duration: 440 },
+  { high: 0.85, low: 0.25, duration: 300 },
+];
+
+function EqualizerBars({ active, color }: { active: boolean; color: string }) {
+  const b0 = useRef(new Animated.Value(0.2)).current;
+  const b1 = useRef(new Animated.Value(0.2)).current;
+  const b2 = useRef(new Animated.Value(0.2)).current;
+  const b3 = useRef(new Animated.Value(0.2)).current;
+  const b4 = useRef(new Animated.Value(0.2)).current;
+  const bars = [b0, b1, b2, b3, b4];
+
+  useEffect(() => {
+    if (!active) {
+      bars.forEach(b => { b.stopAnimation(); b.setValue(0.2); });
+      return;
+    }
+    const anims = bars.map((b, i) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(b, { toValue: BAR_CONFIGS[i].high, duration: BAR_CONFIGS[i].duration, useNativeDriver: false }),
+          Animated.timing(b, { toValue: BAR_CONFIGS[i].low, duration: BAR_CONFIGS[i].duration, useNativeDriver: false }),
+        ])
+      )
+    );
+    anims.forEach(a => a.start());
+    return () => anims.forEach(a => a.stop());
+  }, [active]);
+
+  return (
+    <View style={{ flexDirection: 'row', gap: 4, alignItems: 'flex-end', height: 28 }}>
+      {bars.map((b, i) => (
+        <Animated.View key={i} style={{
+          width: 5,
+          height: b.interpolate({ inputRange: [0, 1], outputRange: [4, 28] }),
+          backgroundColor: color,
+          borderRadius: 3,
+        }} />
+      ))}
+    </View>
+  );
 }
 
 // ─── Carga dinámica de Vapi desde CDN ────────────────────────────────────────
@@ -239,9 +305,12 @@ export default function TutorScreen() {
       setSdkLoading(false);
 
       await vapi.start(VAPI_ASSISTANT_ID, {
-        firstMessage: `Ciao! Sono ${config.tutorName}. Di cosa vorresti parlare oggi?`,
+        firstMessage: `Ciao! / Hello! / ¡Hola! Sono ${config.tutorName}, il tuo tutor d'italiano. In che lingua preferisci parlare? / What language do you prefer? / ¿En qué idioma prefieres hablar?`,
         voice: { provider: '11labs', voiceId: config.voiceId },
-        transcriber: { provider: 'deepgram', model: 'nova-2', language: 'it' },
+        transcriber: { provider: 'deepgram', model: 'nova-2' },
+        model: {
+          messages: [{ role: 'system', content: buildSystemPrompt(config.tutorName) }],
+        },
       } as any);
     } catch (err: any) {
       setSdkLoading(false);
@@ -394,7 +463,7 @@ export default function TutorScreen() {
         <View style={styles.quotaBar}>
           <View style={[styles.quotaFill, {
             width: `${Math.min(100, (minutesUsed / minuteLimit) * 100)}%` as any,
-            backgroundColor: minutesRemaining <= 10 ? '#e53935' : minutesRemaining <= 20 ? '#f57c00' : '#667eea',
+            backgroundColor: minutesRemaining <= 10 ? '#e53935' : minutesRemaining <= 20 ? '#f57c00' : colors.primary,
           }]} />
         </View>
       </View>
@@ -407,13 +476,27 @@ export default function TutorScreen() {
         <Text style={styles.tutorName}>{config.tutorName}</Text>
         <Text style={styles.tutorVoice}>{config.voiceName}</Text>
         {callStatus === 'active' && (
-          <Text style={styles.speakingStatus}>
-            {isTutorSpeaking ? '🎙 Sta parlando...' : '👂 In ascolto...'}
-          </Text>
+          <View style={styles.equalizerRow}>
+            {/* Ecualizador tutor (habla) */}
+            <View style={styles.equalizerBlock}>
+              <EqualizerBars active={isTutorSpeaking} color={colors.primary} />
+              <Text style={[styles.equalizerLabel, { color: isTutorSpeaking ? colors.primary : colors.textSecondary }]}>
+                {isTutorSpeaking ? `${config.tutorName} parla` : config.tutorName}
+              </Text>
+            </View>
+            <Ionicons name="swap-horizontal" size={18} color={colors.border} style={{ marginHorizontal: 8 }} />
+            {/* Ecualizador usuario (escucha) */}
+            <View style={styles.equalizerBlock}>
+              <EqualizerBars active={!isTutorSpeaking} color="#2196f3" />
+              <Text style={[styles.equalizerLabel, { color: !isTutorSpeaking ? '#2196f3' : colors.textSecondary }]}>
+                {!isTutorSpeaking ? 'Tu parli' : 'In attesa'}
+              </Text>
+            </View>
+          </View>
         )}
         {(callStatus === 'connecting' || sdkLoading) && (
           <View style={styles.connectingRow}>
-            <ActivityIndicator size="small" color="#667eea" />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.connectingText}>
               {sdkLoading ? 'Caricamento SDK...' : 'Connessione in corso...'}
             </Text>
@@ -495,31 +578,33 @@ const getStyles = (colors: any) =>
     center: { justifyContent: 'center', alignItems: 'center', padding: 32 },
     lockTitle: { fontSize: 22, fontWeight: 'bold', color: colors.text, marginTop: 20, textAlign: 'center' },
     lockSubtitle: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginTop: 10, lineHeight: 22 },
-    lockButton: { marginTop: 24, backgroundColor: '#667eea', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 36 },
+    lockButton: { marginTop: 24, backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 36 },
     lockButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 },
     headerTitle: { fontSize: 26, fontWeight: 'bold', color: colors.primary },
-    sessionTimer: { fontSize: 14, color: '#667eea', fontWeight: '600', marginTop: 2 },
+    sessionTimer: { fontSize: 14, color: colors.primary, fontWeight: '600', marginTop: 2 },
     configIconButton: { padding: 8 },
     quotaContainer: { marginHorizontal: 20, marginBottom: 8, gap: 6 },
     quotaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     quotaText: { fontSize: 13, fontWeight: '500' },
     quotaBar: { height: 4, backgroundColor: colors.border, borderRadius: 2, overflow: 'hidden' },
     quotaFill: { height: '100%', borderRadius: 2 },
-    tutorCard: { alignItems: 'center', paddingVertical: 28 },
-    avatarCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#667eea', justifyContent: 'center', alignItems: 'center', marginBottom: 14, shadowColor: '#667eea', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6 },
+    tutorCard: { alignItems: 'center', paddingVertical: 20 },
+    avatarCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 14, shadowColor: colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6 },
     tutorName: { fontSize: 22, fontWeight: 'bold', color: colors.text },
     tutorVoice: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
-    speakingStatus: { fontSize: 14, color: '#667eea', fontWeight: '600', marginTop: 8 },
+    equalizerRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16, paddingHorizontal: 20 },
+    equalizerBlock: { alignItems: 'center', gap: 6 },
+    equalizerLabel: { fontSize: 11, fontWeight: '600' },
     connectingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-    connectingText: { fontSize: 14, color: '#667eea' },
+    connectingText: { fontSize: 14, color: colors.primary },
     webHint: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 20, marginBottom: 8, backgroundColor: colors.surface, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: colors.border },
     webHintText: { fontSize: 12, color: colors.textSecondary, flex: 1, lineHeight: 18 },
     transcriptBox: { flex: 1, marginHorizontal: 16, marginBottom: 8 },
     transcriptContent: { gap: 8, paddingVertical: 8 },
     bubble: { maxWidth: '80%', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
     bubbleTutor: { alignSelf: 'flex-start', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-    bubbleUser: { alignSelf: 'flex-end', backgroundColor: '#667eea' },
+    bubbleUser: { alignSelf: 'flex-end', backgroundColor: colors.primary },
     bubbleText: { fontSize: 14, lineHeight: 20 },
     bubbleTextTutor: { color: colors.text },
     bubbleTextUser: { color: '#fff' },
@@ -528,7 +613,7 @@ const getStyles = (colors: any) =>
     errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#ffebee', borderRadius: 10, padding: 12, marginHorizontal: 16, marginBottom: 8 },
     errorText: { color: '#c62828', fontSize: 13, flex: 1 },
     ctaContainer: { paddingHorizontal: 20, paddingBottom: 24, paddingTop: 8 },
-    startButton: { flexDirection: 'row', backgroundColor: '#667eea', borderRadius: 18, height: 64, justifyContent: 'center', alignItems: 'center', gap: 12, shadowColor: '#667eea', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 5 },
+    startButton: { flexDirection: 'row', backgroundColor: colors.primary, borderRadius: 18, height: 64, justifyContent: 'center', alignItems: 'center', gap: 12, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 5 },
     startButtonText: { color: '#fff', fontSize: 18, fontWeight: '700' },
     endButton: { flexDirection: 'row', backgroundColor: '#e53935', borderRadius: 18, height: 64, justifyContent: 'center', alignItems: 'center', gap: 12, shadowColor: '#e53935', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 5 },
     endButtonText: { color: '#fff', fontSize: 18, fontWeight: '700' },
@@ -540,15 +625,15 @@ const getStyles = (colors: any) =>
     configInput: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1.5, borderColor: colors.border, paddingHorizontal: 16, height: 52, fontSize: 16, color: colors.text },
     genderRow: { flexDirection: 'row', gap: 12 },
     genderChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 12, borderWidth: 2, borderColor: colors.border, backgroundColor: colors.surface },
-    genderChipSelected: { backgroundColor: '#667eea', borderColor: '#667eea' },
+    genderChipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
     genderChipText: { fontSize: 15, fontWeight: '600', color: colors.text },
     genderChipTextSelected: { color: '#fff' },
     voiceCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 12, borderWidth: 2, borderColor: colors.border, padding: 14, marginBottom: 10 },
-    voiceCardSelected: { borderColor: '#667eea' },
+    voiceCardSelected: { borderColor: colors.primary },
     voiceInfo: { flex: 1 },
     voiceName: { fontSize: 15, fontWeight: '600', color: colors.text },
-    voiceNameSelected: { color: '#667eea' },
+    voiceNameSelected: { color: colors.primary },
     voiceDesc: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
-    saveButton: { backgroundColor: '#667eea', borderRadius: 14, height: 56, justifyContent: 'center', alignItems: 'center', marginTop: 28 },
+    saveButton: { backgroundColor: colors.primary, borderRadius: 14, height: 56, justifyContent: 'center', alignItems: 'center', marginTop: 28 },
     saveButtonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
   });
