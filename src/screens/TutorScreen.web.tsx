@@ -232,14 +232,10 @@ export default function TutorScreen() {
       attachListeners(vapi);
       setSdkLoading(false);
 
-      const overrides = {
-        assistantOverrides: {
-          firstMessage: `Ciao! Sono ${config.tutorName}. Di cosa vorresti parlare oggi?`,
-          voice: { provider: 'elevenlabs', voiceId: config.voiceId },
-        },
-      };
-      console.log('[Vapi start] overrides:', JSON.stringify(overrides));
-      await vapi.start(VAPI_ASSISTANT_ID, overrides as any);
+      await vapi.start(VAPI_ASSISTANT_ID, {
+        firstMessage: `Ciao! Sono ${config.tutorName}. Di cosa vorresti parlare oggi?`,
+        voice: { provider: 'elevenlabs', voiceId: config.voiceId },
+      } as any);
     } catch (err: any) {
       setSdkLoading(false);
       console.error('[Vapi catch]', JSON.stringify(err, null, 2));
