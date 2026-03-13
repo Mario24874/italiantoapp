@@ -170,12 +170,17 @@ export default function TutorScreen() {
   const [minutesUsed, setMinutesUsed] = useState(0);
   const [error, setError] = useState('');
   const [sdkLoading, setSdkLoading] = useState(false);
+  const [userSpeaking, setUserSpeaking] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionStartRef = useRef<number>(0);
   const scrollRef = useRef<ScrollView>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const listenersAttached = useRef(false);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<any>(null);
+  const analyserRef = useRef<any>(null);
+  const micPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const styles = getStyles(colors);
 
   const minutesRemaining = Math.max(0, minuteLimit - minutesUsed);
@@ -244,6 +249,11 @@ export default function TutorScreen() {
     vapi.on('call-end', async () => {
       setCallStatus('idle');
       setIsTutorSpeaking(false);
+      setUserSpeaking(false);
+      // Limpiar análisis de micrófono
+      if (micPollRef.current) clearInterval(micPollRef.current);
+      if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; }
+      if (micStreamRef.current) { micStreamRef.current.getTracks().forEach(t => t.stop()); micStreamRef.current = null; }
       if (userId && sessionStartRef.current > 0) {
         const elapsedMinutes = (Date.now() - sessionStartRef.current) / 60000;
         sessionStartRef.current = 0;
@@ -280,15 +290,29 @@ export default function TutorScreen() {
       return;
     }
 
-    // Solicitar permiso de micrófono con echo cancellation
+    // Solicitar permiso de micrófono e iniciar análisis de nivel de audio
+    let micStream: MediaStream;
     try {
-      await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
+      micStreamRef.current = micStream;
+      // Análisis de audio para detectar cuando el usuario habla
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 512;
+        ctx.createMediaStreamSource(micStream).connect(analyser);
+        audioContextRef.current = ctx;
+        analyserRef.current = analyser;
+        const dataArr = new Uint8Array(analyser.frequencyBinCount);
+        micPollRef.current = setInterval(() => {
+          analyser.getByteFrequencyData(dataArr);
+          const avg = dataArr.reduce((a, b) => a + b, 0) / dataArr.length;
+          setUserSpeaking(avg > 12);
+        }, 80);
+      }
     } catch {
       setError('Permesso microfono negato. Consenti l\'accesso al microfono nelle impostazioni del browser.');
       return;
@@ -320,6 +344,10 @@ export default function TutorScreen() {
   // ─── Terminar llamada ─────────────────────────────────────────────────────
   const endCall = useCallback(async () => {
     setCallStatus('ending');
+    if (micPollRef.current) clearInterval(micPollRef.current);
+    if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; }
+    if (micStreamRef.current) { micStreamRef.current.getTracks().forEach(t => t.stop()); micStreamRef.current = null; }
+    setUserSpeaking(false);
     try {
       const vapi = await getVapi();
       vapi.stop();
@@ -482,11 +510,11 @@ export default function TutorScreen() {
               </Text>
             </View>
             <Ionicons name="swap-horizontal" size={18} color={colors.border} style={{ marginHorizontal: 8 }} />
-            {/* Ecualizador usuario (escucha) */}
+            {/* Ecualizador usuario (micrófono real) */}
             <View style={styles.equalizerBlock}>
-              <EqualizerBars active={!isTutorSpeaking} color="#2196f3" />
-              <Text style={[styles.equalizerLabel, { color: !isTutorSpeaking ? '#2196f3' : colors.textSecondary }]}>
-                {!isTutorSpeaking ? 'Tu parli' : 'In attesa'}
+              <EqualizerBars active={userSpeaking} color="#2196f3" />
+              <Text style={[styles.equalizerLabel, { color: userSpeaking ? '#2196f3' : colors.textSecondary }]}>
+                {userSpeaking ? 'Tu parli' : 'In ascolto'}
               </Text>
             </View>
           </View>
