@@ -6,14 +6,13 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, ActivityIndicator, Platform } from 'react-native';
+import { View, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { ClerkProvider } from '@clerk/clerk-expo';
 
 import TranslatorScreen from './src/screens/TranslatorScreen';
-// TutorScreen carga lazy para evitar que Vapi/WebRTC inicialice al arrancar la app
-const TutorScreen = React.lazy(() => import('./src/screens/TutorScreen'));
+import TutorTab from './src/components/TutorTab';
 import ConjugatorScreen from './src/screens/ConjugatorScreen';
 import PronunciationScreen from './src/screens/PronunciationScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
@@ -28,47 +27,6 @@ import { Onboarding } from './src/components/Onboarding';
 
 const Tab = createBottomTabNavigator();
 const RootStack = createNativeStackNavigator();
-
-// ─── Error boundary para TutorScreen (captura crash de Vapi/WebRTC) ──────────
-class TutorErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; error: string }
-> {
-  state = { hasError: false, error: '' };
-  static getDerivedStateFromError(e: any) {
-    return { hasError: true, error: e?.message ?? 'Error desconocido' };
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-          <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>
-            Tutor AI no disponible
-          </Text>
-          <Text style={{ textAlign: 'center', color: '#666' }}>
-            {this.state.error}
-          </Text>
-        </View>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-// Wrapper que carga TutorScreen de forma lazy con Suspense + ErrorBoundary
-function TutorTab() {
-  return (
-    <TutorErrorBoundary>
-      <React.Suspense fallback={
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" />
-        </View>
-      }>
-        <TutorScreen />
-      </React.Suspense>
-    </TutorErrorBoundary>
-  );
-}
 
 // Token cache para Clerk:
 // - Web: usa localStorage (expo-secure-store no funciona en browser)
