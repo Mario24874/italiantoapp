@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,10 +28,10 @@ const VAPI_ASSISTANT_ID = process.env.EXPO_PUBLIC_VAPI_ASSISTANT_ID!;
 
 // ─── Voces italianas curadas ──────────────────────────────────────────────────
 export const ITALIAN_VOICES = [
-  { id: 'Yb9rQITgCX1VdXgAkbjM', name: 'Gioele', gender: 'male' as const, description: 'Mediterraneo, caldo' },
-  { id: 'zcAOhNBS3c14rBihAFp1', name: 'Giovanni', gender: 'male' as const, description: 'Classico, chiaro' },
-  { id: 'CnVVMwhKmKZ6hKBAkL6Y', name: 'Giulia', gender: 'female' as const, description: 'Dolce, rassicurante' },
-  { id: 'HLbf5OcXzzI5RP4O3I3d', name: 'Francesca', gender: 'female' as const, description: 'Elegante, professionale' },
+  { id: 'Yb9rQITgCX1VdXgAkbjM', name: 'Marco', gender: 'male' as const, description: 'Mediterraneo, caldo', avatar: '/tutor-Marco.png' },
+  { id: 'zcAOhNBS3c14rBihAFp1', name: 'Giovanni', gender: 'male' as const, description: 'Classico, chiaro', avatar: '/tutor-Giovanni.png' },
+  { id: 'CnVVMwhKmKZ6hKBAkL6Y', name: 'Giulia', gender: 'female' as const, description: 'Dolce, rassicurante', avatar: '/tutor-Giulia.png' },
+  { id: 'HLbf5OcXzzI5RP4O3I3d', name: 'Francesca', gender: 'female' as const, description: 'Elegante, professionale', avatar: '/tutor-Francesca.png' },
 ];
 
 interface TutorConfig {
@@ -38,6 +39,7 @@ interface TutorConfig {
   voiceId: string;
   voiceName: string;
   gender: 'male' | 'female';
+  avatarUri: string;
 }
 
 type CallStatus = 'idle' | 'connecting' | 'active' | 'ending';
@@ -52,6 +54,7 @@ const DEFAULT_CONFIG: TutorConfig = {
   voiceId: ITALIAN_VOICES[0].id,
   voiceName: ITALIAN_VOICES[0].name,
   gender: 'male',
+  avatarUri: ITALIAN_VOICES[0].avatar,
 };
 
 const STORAGE_KEY = 'tutor_config_v1';
@@ -190,6 +193,11 @@ export default function TutorScreen() {
     AsyncStorage.getItem(STORAGE_KEY).then(val => {
       if (val) {
         const saved = JSON.parse(val) as TutorConfig;
+        // Retrocompatibilidad: si no tiene avatarUri, recuperarlo del array de voces
+        if (!saved.avatarUri) {
+          const voice = ITALIAN_VOICES.find(v => v.id === saved.voiceId);
+          saved.avatarUri = voice?.avatar ?? ITALIAN_VOICES[0].avatar;
+        }
         setConfig(saved);
         setEditingConfig(saved);
       }
@@ -398,10 +406,6 @@ export default function TutorScreen() {
 
   // ─── Panel de configuración ───────────────────────────────────────────────
   if (showConfig) {
-    const maleVoices = ITALIAN_VOICES.filter(v => v.gender === 'male');
-    const femaleVoices = ITALIAN_VOICES.filter(v => v.gender === 'female');
-    const currentGenderVoices = editingConfig.gender === 'male' ? maleVoices : femaleVoices;
-
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.configScroll}>
         <View style={styles.configHeader}>
@@ -411,49 +415,56 @@ export default function TutorScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.configLabel}>Nome del tutor</Text>
+        {/* Selección de tutor con avatar */}
+        <Text style={styles.configLabel}>Scegli il tuo tutor</Text>
+        <View style={styles.avatarGrid}>
+          {ITALIAN_VOICES.map(v => {
+            const isSelected = editingConfig.voiceId === v.id;
+            return (
+              <TouchableOpacity
+                key={v.id}
+                style={[styles.avatarOption, isSelected && styles.avatarOptionSelected]}
+                onPress={() => setEditingConfig(prev => ({
+                  ...prev,
+                  voiceId: v.id,
+                  voiceName: v.name,
+                  tutorName: v.name,
+                  gender: v.gender,
+                  avatarUri: v.avatar,
+                }))}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.avatarImgWrap, isSelected && styles.avatarImgWrapSelected]}>
+                  <Image
+                    source={{ uri: v.avatar }}
+                    style={styles.avatarOptionImg}
+                    resizeMode="cover"
+                  />
+                  {isSelected && (
+                    <View style={styles.avatarCheckBadge}>
+                      <Ionicons name="checkmark" size={12} color="#fff" />
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.avatarOptionName, isSelected && styles.avatarOptionNameSelected]}>
+                  {v.name}
+                </Text>
+                <Text style={styles.avatarOptionDesc}>{v.description}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Nombre personalizado (opcional) */}
+        <Text style={styles.configLabel}>Nome personalizzato (opzionale)</Text>
         <TextInput
           style={styles.configInput}
           value={editingConfig.tutorName}
           onChangeText={t => setEditingConfig(prev => ({ ...prev, tutorName: t }))}
-          placeholder="es. Marco, Sofia..."
+          placeholder="Lascia il nome originale o personalizzalo"
           placeholderTextColor={colors.textSecondary}
           maxLength={20}
         />
-
-        <Text style={styles.configLabel}>Genere</Text>
-        <View style={styles.genderRow}>
-          {(['male', 'female'] as const).map(g => (
-            <TouchableOpacity
-              key={g}
-              style={[styles.genderChip, editingConfig.gender === g && styles.genderChipSelected]}
-              onPress={() => {
-                const voices = g === 'male' ? maleVoices : femaleVoices;
-                setEditingConfig(prev => ({ ...prev, gender: g, voiceId: voices[0].id, voiceName: voices[0].name }));
-              }}
-            >
-              <Ionicons name={g === 'male' ? 'man' : 'woman'} size={18} color={editingConfig.gender === g ? '#fff' : colors.text} />
-              <Text style={[styles.genderChipText, editingConfig.gender === g && styles.genderChipTextSelected]}>
-                {g === 'male' ? 'Maschile' : 'Femminile'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.configLabel}>Voce</Text>
-        {currentGenderVoices.map(v => (
-          <TouchableOpacity
-            key={v.id}
-            style={[styles.voiceCard, editingConfig.voiceId === v.id && styles.voiceCardSelected]}
-            onPress={() => setEditingConfig(prev => ({ ...prev, voiceId: v.id, voiceName: v.name }))}
-          >
-            <View style={styles.voiceInfo}>
-              <Text style={[styles.voiceName, editingConfig.voiceId === v.id && styles.voiceNameSelected]}>{v.name}</Text>
-              <Text style={styles.voiceDesc}>{v.description}</Text>
-            </View>
-            {editingConfig.voiceId === v.id && <Ionicons name="checkmark-circle" size={22} color="#667eea" />}
-          </TouchableOpacity>
-        ))}
 
         <TouchableOpacity style={styles.saveButton} onPress={saveConfig}>
           <Text style={styles.saveButtonText}>Salva configurazione</Text>
@@ -498,7 +509,11 @@ export default function TutorScreen() {
       {/* Tarjeta del tutor */}
       <View style={styles.tutorCard}>
         <Animated.View style={[styles.avatarCircle, { transform: [{ scale: pulseAnim }] }]}>
-          <Ionicons name={config.gender === 'male' ? 'man' : 'woman'} size={48} color="#fff" />
+          <Image
+            source={{ uri: config.avatarUri }}
+            style={styles.avatarImage}
+            resizeMode="cover"
+          />
         </Animated.View>
         <Text style={styles.tutorName}>{config.tutorName}</Text>
         <Text style={styles.tutorVoice}>{config.voiceName}</Text>
@@ -617,7 +632,8 @@ const getStyles = (colors: any) =>
     quotaBar: { height: 4, backgroundColor: colors.border, borderRadius: 2, overflow: 'hidden' },
     quotaFill: { height: '100%', borderRadius: 2 },
     tutorCard: { alignItems: 'center', paddingVertical: 20 },
-    avatarCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 14, shadowColor: colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6 },
+    avatarCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 14, shadowColor: colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6, overflow: 'hidden' },
+    avatarImage: { width: 100, height: 100, borderRadius: 50 },
     tutorName: { fontSize: 22, fontWeight: 'bold', color: colors.text },
     tutorVoice: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
     equalizerRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16, paddingHorizontal: 20 },
@@ -650,17 +666,17 @@ const getStyles = (colors: any) =>
     configTitle: { fontSize: 22, fontWeight: 'bold', color: colors.text },
     configLabel: { fontSize: 14, fontWeight: '600', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 20 },
     configInput: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1.5, borderColor: colors.border, paddingHorizontal: 16, height: 52, fontSize: 16, color: colors.text },
-    genderRow: { flexDirection: 'row', gap: 12 },
-    genderChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 12, borderWidth: 2, borderColor: colors.border, backgroundColor: colors.surface },
-    genderChipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
-    genderChipText: { fontSize: 15, fontWeight: '600', color: colors.text },
-    genderChipTextSelected: { color: '#fff' },
-    voiceCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 12, borderWidth: 2, borderColor: colors.border, padding: 14, marginBottom: 10 },
-    voiceCardSelected: { borderColor: colors.primary },
-    voiceInfo: { flex: 1 },
-    voiceName: { fontSize: 15, fontWeight: '600', color: colors.text },
-    voiceNameSelected: { color: colors.primary },
-    voiceDesc: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
     saveButton: { backgroundColor: colors.primary, borderRadius: 14, height: 56, justifyContent: 'center', alignItems: 'center', marginTop: 28 },
     saveButtonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+    // Avatar grid
+    avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 8 },
+    avatarOption: { width: '46%', alignItems: 'center', gap: 6, padding: 10, borderRadius: 16, borderWidth: 2, borderColor: colors.border, backgroundColor: colors.surface },
+    avatarOptionSelected: { borderColor: colors.primary, backgroundColor: colors.primary + '10' },
+    avatarImgWrap: { position: 'relative', width: 72, height: 72, borderRadius: 36, overflow: 'hidden', borderWidth: 3, borderColor: 'transparent' },
+    avatarImgWrapSelected: { borderColor: colors.primary },
+    avatarOptionImg: { width: 72, height: 72, borderRadius: 36 },
+    avatarCheckBadge: { position: 'absolute', bottom: 2, right: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
+    avatarOptionName: { fontSize: 14, fontWeight: '700', color: colors.text },
+    avatarOptionNameSelected: { color: colors.primary },
+    avatarOptionDesc: { fontSize: 11, color: colors.textSecondary, textAlign: 'center' },
   });
