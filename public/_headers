@@ -1,0 +1,18 @@
+# Service worker — NUNCA cachear (el browser debe revisar en cada visita)
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Manifest — sin cache (cambios deben verse inmediatamente)
+/manifest.json
+  Cache-Control: public, max-age=0, must-revalidate
+  Content-Type: application/manifest+json
+
+# Assets estáticos — 1 año (Expo usa content-hash en el nombre)
+/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Seguridad general
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin

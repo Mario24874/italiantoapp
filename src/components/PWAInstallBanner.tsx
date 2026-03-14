@@ -1,88 +1,153 @@
-import React, { useEffect, useState } from 'react';
+/**
+ * PWAInstallBanner
+ *
+ * Muestra un banner de instalación en la parte inferior de la pantalla
+ * cuando la app puede ser instalada como PWA.
+ *
+ * Estrategia:
+ * - El evento `beforeinstallprompt` se captura en web/index.html (ANTES de que React cargue)
+ *   y se guarda en window.__pwaPrompt.
+ * - Este componente solo lee ese valor y muestra la UI cuando está disponible.
+ * - En iOS Safari: no hay beforeinstallprompt → muestra instrucciones de "Añadir a inicio".
+ * - Si la app ya corre en modo standalone (instalada): no muestra nada.
+ */
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 
-// Only renders on web
+type BannerMode = 'android' | 'ios' | null;
+
+function isStandalone(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    ('standalone' in navigator && (navigator as any).standalone === true)
+  );
+}
+
+function detectMobilePlatform(): BannerMode {
+  if (typeof navigator === 'undefined') return null;
+  const ua = navigator.userAgent.toLowerCase();
+  if (/android/.test(ua)) return 'android';
+  if (/iphone|ipad|ipod/.test(ua)) return 'ios';
+  return null;  // Desktop — Chrome mostrará su propio botón en la barra de direcciones
+}
+
 export default function PWAInstallBanner() {
   const { colors } = useTheme();
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [mode, setMode] = useState<BannerMode>(null);
   const [visible, setVisible] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-  const slideAnim = React.useRef(new Animated.Value(120)).current;
+  const slideAnim = useRef(new Animated.Value(120)).current;
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
+    if (isStandalone()) return;  // Ya instalada — no mostrar
 
-    // Already running as installed PWA — no need to show
-    if (
-      typeof window !== 'undefined' &&
-      window.matchMedia('(display-mode: standalone)').matches
-    ) return;
+    const platform = detectMobilePlatform();
+    if (!platform) return;  // En desktop Chrome el botón aparece en la barra de URL
 
-    // Detect iOS (Safari doesn't support beforeinstallprompt)
-    const ua = navigator.userAgent;
-    const isIOSDevice = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
-    if (isIOSDevice) {
-      setIsIOS(true);
-      setVisible(true);
-      return;
-    }
+    // Verificar si el usuario ya descartó el banner en esta sesión
+    if (sessionStorage.getItem('pwa_banner_dismissed')) return;
 
-    // Android / Desktop Chrome
-    const handler = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
+    const show = () => {
+      setMode(platform);
       setVisible(true);
     };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+
+    if (platform === 'android') {
+      // En Android esperamos a que window.__pwaPrompt esté disponible
+      if ((window as any).__pwaPrompt) {
+        // El evento ya disparó antes de que montáramos
+        setTimeout(show, 1200);
+      } else {
+        // Escuchamos el evento personalizado que lanza index.html
+        const handler = () => setTimeout(show, 1200);
+        window.addEventListener('pwa-prompt-ready', handler);
+        return () => window.removeEventListener('pwa-prompt-ready', handler);
+      }
+    } else {
+      // iOS: no hay beforeinstallprompt, mostrar instrucciones siempre
+      setTimeout(show, 1500);
+    }
   }, []);
 
   useEffect(() => {
     if (visible) {
-      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: false, tension: 80, friction: 12 }).start();
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: false,
+        tension: 80,
+        friction: 12,
+      }).start();
     }
   }, [visible]);
 
-  const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') dismiss();
-  };
-
   const dismiss = () => {
-    Animated.timing(slideAnim, { toValue: 120, duration: 250, useNativeDriver: false }).start(() => setVisible(false));
+    sessionStorage.setItem('pwa_banner_dismissed', '1');
+    Animated.timing(slideAnim, {
+      toValue: 120,
+      duration: 250,
+      useNativeDriver: false,
+    }).start(() => setVisible(false));
   };
 
-  if (!visible) return null;
+  const handleInstall = async () => {
+    const prompt = (window as any).__pwaPrompt;
+    if (!prompt) return;
+    prompt.prompt();
+    const { outcome } = await prompt.userChoice;
+    if (outcome === 'accepted') {
+      (window as any).__pwaPrompt = null;
+      dismiss();
+    }
+  };
+
+  if (!visible || !mode) return null;
 
   const styles = getStyles(colors);
 
   return (
     <Animated.View style={[styles.banner, { transform: [{ translateY: slideAnim }] }]}>
-      <View style={styles.iconWrap}>
-        <Ionicons name="phone-portrait-outline" size={28} color={colors.primary} />
-      </View>
-      <View style={styles.textWrap}>
-        <Text style={styles.title}>Installa ItaliantoApp</Text>
-        {isIOS ? (
-          <Text style={styles.subtitle}>
-            Tocca <Ionicons name="share-outline" size={12} color={colors.textSecondary} /> → "Aggiungi a schermata home"
+      {/* Franja tricolor italiana */}
+      <View style={styles.italianStripe} />
+
+      <View style={styles.content}>
+        <View style={styles.iconWrap}>
+          <Ionicons name="phone-portrait-outline" size={26} color={colors.primary} />
+        </View>
+
+        <View style={styles.textWrap}>
+          <Text style={styles.title}>
+            {mode === 'android' ? 'Installa ItaliantoApp' : 'Aggiungi alla schermata home'}
           </Text>
-        ) : (
-          <Text style={styles.subtitle}>Accesso rapido senza browser</Text>
+          <Text style={styles.subtitle}>
+            {mode === 'android'
+              ? 'Accesso rapido senza browser'
+              : 'Tocca condividi → "Aggiungi a schermata Home"'}
+          </Text>
+        </View>
+
+        {mode === 'android' && (
+          <TouchableOpacity style={styles.installBtn} onPress={handleInstall} activeOpacity={0.8}>
+            <Text style={styles.installBtnText}>Installa</Text>
+          </TouchableOpacity>
         )}
-      </View>
-      {!isIOS && (
-        <TouchableOpacity style={styles.installBtn} onPress={handleInstall} activeOpacity={0.8}>
-          <Text style={styles.installBtnText}>Installa</Text>
+
+        {mode === 'ios' && (
+          <View style={styles.iosHint}>
+            <Ionicons name="share-outline" size={18} color={colors.primary} />
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={styles.closeBtn}
+          onPress={dismiss}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="close" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
-      )}
-      <TouchableOpacity style={styles.closeBtn} onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <Ionicons name="close" size={20} color={colors.textSecondary} />
-      </TouchableOpacity>
+      </View>
     </Animated.View>
   );
 }
@@ -91,56 +156,73 @@ const getStyles = (colors: any) =>
   StyleSheet.create({
     banner: {
       position: 'absolute' as any,
-      bottom: 80, // above tab bar
-      left: 12,
-      right: 12,
-      flexDirection: 'row',
-      alignItems: 'center',
+      bottom: 76,
+      left: 8,
+      right: 8,
       backgroundColor: colors.surface,
       borderRadius: 16,
-      padding: 14,
-      gap: 12,
+      overflow: 'hidden',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.18,
+      shadowOpacity: 0.15,
       shadowRadius: 12,
       elevation: 8,
       borderWidth: 1,
       borderColor: colors.border,
       zIndex: 999,
     },
+    italianStripe: {
+      height: 3,
+      // Bandera italiana: verde | blanco | rojo
+      background: 'linear-gradient(90deg, #009246 33.3%, #ffffff 33.3% 66.6%, #ce2b37 66.6%)' as any,
+      backgroundColor: '#009246',  // fallback para RN (no aplica en web)
+    },
+    content: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 12,
+      gap: 10,
+    },
     iconWrap: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      backgroundColor: colors.primary + '20',
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: colors.primary + '18',
       justifyContent: 'center',
       alignItems: 'center',
     },
     textWrap: {
       flex: 1,
-      gap: 3,
     },
     title: {
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: '700',
       color: colors.text,
     },
     subtitle: {
-      fontSize: 12,
+      fontSize: 11,
       color: colors.textSecondary,
-      lineHeight: 17,
+      marginTop: 2,
+      lineHeight: 15,
     },
     installBtn: {
       backgroundColor: colors.primary,
-      borderRadius: 10,
-      paddingHorizontal: 16,
-      paddingVertical: 8,
+      borderRadius: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 7,
     },
     installBtnText: {
       color: '#fff',
       fontSize: 13,
       fontWeight: '700',
+    },
+    iosHint: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      backgroundColor: colors.primary + '18',
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     closeBtn: {
       padding: 2,

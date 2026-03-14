@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+
+    <!-- Viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Theme colors -->
+    <meta name="theme-color" content="#2e7d32" />
+    <meta name="msapplication-TileColor" content="#2e7d32" />
+
+    <!-- Mobile web app -->
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- iOS / Safari PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ItaliantoApp" />
+    <link rel="apple-touch-icon" href="/Logo_ItaliAnto.png" />
+
+    <!-- SEO -->
+    <meta name="description" content="Aprende italiano: traduce, conjuga, practica pronunciación y habla con el Tutor AI" />
+    <meta name="keywords" content="italiano, aprender italiano, tutor italiano, traducir italiano" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/Logo_ItaliAnto.png" />
+
+    <title>ItaliantoApp</title>
+
+    <!--
+      Capture beforeinstallprompt BEFORE React loads.
+      Chrome fires this event early — if we only listen inside a React
+      component it will already have fired by the time the component mounts.
+      We store the event in window.__pwaPrompt so PWAInstallBanner can use it.
+    -->
+    <script>
+      window.__pwaPrompt = null;
+      window.__pwaInstalled = false;
+
+      window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        window.__pwaPrompt = e;
+        // Notify any React listener that the prompt is ready
+        window.dispatchEvent(new Event('pwa-prompt-ready'));
+      });
+
+      window.addEventListener('appinstalled', function() {
+        window.__pwaInstalled = true;
+        window.__pwaPrompt = null;
+        window.dispatchEvent(new Event('pwa-installed'));
+      });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
