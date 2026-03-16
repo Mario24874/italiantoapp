@@ -160,10 +160,11 @@ export default function PaywallScreen() {
           'italiantoapp://'
         );
 
-        if (result.type === 'success' && result.url?.includes('status=success')) {
+        const resultUrl = result.type === 'success' ? (result as any).url as string | undefined : undefined;
+        if (result.type === 'success' && resultUrl?.includes('status=success')) {
           await refreshSubscription();
           setSuccess(true);
-        } else if (result.type === 'cancel' || result.url?.includes('status=cancel')) {
+        } else if (result.type === 'cancel' || resultUrl?.includes('status=cancel')) {
           // User closed or cancelled — no error
         }
         setLoading(false);

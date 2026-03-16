@@ -1,9 +1,17 @@
+import { Platform } from 'react-native';
 import Voice from '@react-native-voice/voice';
 import * as Speech from 'expo-speech';
+import * as FileSystem from 'expo-file-system';
+import { Audio } from 'expo-av';
 import { PronunciationResult } from '../types';
 import { ErrorHandler } from '../utils/errorHandler';
 
+const ELEVENLABS_API_KEY = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY || '';
+const ELEVENLABS_VOICE_ID = process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_ID || 'b8jhBTcGAq4kQGWmKprT';
+
 export class PronunciationService {
+  private static currentSound: Audio.Sound | null = null;
+
   private static italianWords = [
     // Saludos básicos
     'ciao', 'buongiorno', 'buonasera', 'buonanotte', 'arrivederci',
@@ -44,24 +52,97 @@ export class PronunciationService {
 
   static async speakWord(word: string): Promise<void> {
     try {
-      // Detener cualquier reproducción anterior
       await Speech.stop();
+      if (this.currentSound) {
+        await this.currentSound.unloadAsync().catch(() => {});
+        this.currentSound = null;
+      }
 
-      // Reproducir la palabra con configuración optimizada para italiano
-      await Speech.speak(word, {
-        language: 'it-IT',
-        pitch: 1.0,
-        rate: 0.75,  // Velocidad ligeramente más lenta para mejor comprensión
-        volume: 1.0,
-        onDone: () => console.log('Speech finished'),
-        onError: (error) => console.error('Speech error:', error)
-      });
-
-      console.log(`Speaking word: "${word}"`);
+      if (ELEVENLABS_API_KEY) {
+        await this.speakWithElevenLabs(word);
+      } else {
+        await this.speakWithTTS(word);
+      }
     } catch (error) {
-      console.error('Error speaking word:', error);
-      throw new Error('Errore nella riproduzione audio');
+      console.warn('ElevenLabs failed, falling back to TTS:', error);
+      await this.speakWithTTS(word).catch(console.error);
     }
+  }
+
+  private static async speakWithTTS(word: string): Promise<void> {
+    await Speech.speak(word, {
+      language: 'it-IT',
+      pitch: 1.0,
+      rate: 0.75,
+      volume: 1.0,
+    });
+  }
+
+  private static async speakWithElevenLabs(word: string): Promise<void> {
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`,
+      {
+        method: 'POST',
+        headers: {
+          'xi-api-key': ELEVENLABS_API_KEY,
+          'Content-Type': 'application/json',
+          'Accept': 'audio/mpeg',
+        },
+        body: JSON.stringify({
+          text: word,
+          model_id: 'eleven_multilingual_v2',
+          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`ElevenLabs API error: ${response.status}`);
+    }
+
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+
+    let audioUri: string;
+    let blobUrl: string | null = null;
+
+    if (Platform.OS === 'web') {
+      const blob = await response.blob();
+      blobUrl = URL.createObjectURL(blob);
+      audioUri = blobUrl;
+    } else {
+      const buffer = await response.arrayBuffer();
+      const base64 = this.arrayBufferToBase64(buffer);
+      audioUri = `${FileSystem.cacheDirectory}pronunciation_${Date.now()}.mp3`;
+      await FileSystem.writeAsStringAsync(audioUri, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+    }
+
+    const { sound } = await Audio.Sound.createAsync({ uri: audioUri });
+    this.currentSound = sound;
+    await sound.playAsync();
+
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.isLoaded && status.didJustFinish) {
+        sound.unloadAsync().catch(() => {});
+        this.currentSound = null;
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
+        if (Platform.OS !== 'web') {
+          FileSystem.deleteAsync(audioUri, { idempotent: true }).catch(() => {});
+        }
+      }
+    });
+  }
+
+  private static arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 8192;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+    return btoa(binary);
   }
 
   static async startListening(): Promise<void> {
