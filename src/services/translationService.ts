@@ -1660,14 +1660,12 @@ export class TranslationService {
       let response: Response;
 
       if (Platform.OS === 'web') {
-        // Use Supabase proxy to avoid CORS
+        // Use Supabase proxy to avoid CORS (JWT verification disabled on function)
         response = await fetch(this.SUPABASE_TRANSLATE_URL, {
           method: 'POST',
           signal: controller.signal,
           headers: {
             'Content-Type': 'application/json',
-            'apikey': this.SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${this.SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({ text, source_lang: sourceLangCode, target_lang: targetLangCode }),
         });
