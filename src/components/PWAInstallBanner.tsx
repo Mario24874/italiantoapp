@@ -56,15 +56,25 @@ export default function PWAInstallBanner() {
     };
 
     if (platform === 'android') {
-      // En Android esperamos a que window.__pwaPrompt esté disponible
       if ((window as any).__pwaPrompt) {
         // El evento ya disparó antes de que montáramos
         setTimeout(show, 1200);
       } else {
-        // Escuchamos el evento personalizado que lanza index.html
-        const handler = () => setTimeout(show, 1200);
+        // Escuchamos el evento — pero si Chrome no lo dispara en 4s,
+        // mostramos instrucciones manuales de todas formas.
+        let fired = false;
+        const handler = () => {
+          fired = true;
+          setTimeout(show, 1200);
+        };
         window.addEventListener('pwa-prompt-ready', handler);
-        return () => window.removeEventListener('pwa-prompt-ready', handler);
+        const fallback = setTimeout(() => {
+          if (!fired) show();  // mostrar instrucciones manuales
+        }, 4000);
+        return () => {
+          window.removeEventListener('pwa-prompt-ready', handler);
+          clearTimeout(fallback);
+        };
       }
     } else {
       // iOS: no hay beforeinstallprompt, mostrar instrucciones siempre
@@ -119,24 +129,26 @@ export default function PWAInstallBanner() {
 
         <View style={styles.textWrap}>
           <Text style={styles.title}>
-            {mode === 'android' ? 'Installa ItaliantoApp' : 'Aggiungi alla schermata home'}
+            {mode === 'ios' ? 'Aggiungi alla schermata home' : 'Installa ItaliantoApp'}
           </Text>
           <Text style={styles.subtitle}>
-            {mode === 'android'
-              ? 'Accesso rapido senza browser'
-              : 'Tocca condividi → "Aggiungi a schermata Home"'}
+            {mode === 'ios'
+              ? 'Tocca condividi → "Aggiungi a schermata Home"'
+              : (window as any).__pwaPrompt
+                ? 'Accesso rapido senza browser'
+                : 'Menu (⋮) → "Aggiungi a schermata Home"'}
           </Text>
         </View>
 
-        {mode === 'android' && (
+        {mode === 'android' && (window as any).__pwaPrompt && (
           <TouchableOpacity style={styles.installBtn} onPress={handleInstall} activeOpacity={0.8}>
             <Text style={styles.installBtnText}>Installa</Text>
           </TouchableOpacity>
         )}
 
-        {mode === 'ios' && (
+        {(mode === 'ios' || (mode === 'android' && !(window as any).__pwaPrompt)) && (
           <View style={styles.iosHint}>
-            <Ionicons name="share-outline" size={18} color={colors.primary} />
+            <Ionicons name={mode === 'ios' ? 'share-outline' : 'ellipsis-vertical'} size={18} color={colors.primary} />
           </View>
         )}
 
