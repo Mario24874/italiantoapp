@@ -65,7 +65,8 @@ export default {
         projectId: "76bffcff-51b7-465e-8239-d5cb8fce4413"
       },
       // Variables de entorno seguras
-      deeplApiKey: process.env.DEEPL_API_KEY || "71ff8838-ffff-427b-812f-ebb76efe3e61:fx"
+      deeplApiKey: process.env.DEEPL_API_KEY || "71ff8838-ffff-427b-812f-ebb76efe3e61:fx",
+      supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpocG5vb2hkZWZuaWd1bWpneGJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwOTMwOTQsImV4cCI6MjA4ODY2OTA5NH0.0VHkHUdgf2TkmHlcWA6ru5s0Q9e6yX2YVhQkvDxDMVc"
     },
     owner: "mario24874"
   }
