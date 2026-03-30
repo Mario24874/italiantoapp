@@ -39,8 +39,8 @@ export default {
     web: {
       favicon: "./assets/Logo_ItaliAnto.png",
       bundler: "metro",
-      name: "ItaliAnto",
-      shortName: "ItaliAnto",
+      name: "Italianto",
+      shortName: "Italianto",
       description: "Aprende italiano: traduce, conjuga, practica pronunciación y habla con el Tutor AI",
       themeColor: "#2e7d32",
       backgroundColor: "#2e7d32",
