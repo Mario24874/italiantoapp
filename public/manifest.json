@@ -1,6 +1,6 @@
 {
   "name": "ItaliantoApp",
-  "short_name": "Italianto",
+  "short_name": "ItaliantoApp",
   "description": "Aprende italiano: traduce, conjuga, practica pronunciación y habla con el Tutor AI",
   "start_url": "/",
   "scope": "/",
@@ -14,9 +14,21 @@
   "icons": [
     {
       "src": "/Logo_ItaliAnto.png",
-      "sizes": "500x500",
+      "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/Logo_ItaliAnto.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/Logo_ItaliAnto.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
