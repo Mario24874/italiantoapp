@@ -220,7 +220,7 @@ export default function PronunciationScreen() {
       
       {/* Header con logo y toggle de tema */}
       <View style={styles.headerContainer}>
-        <Image source={require('../../assets/Logo_ItaliAnto.png')} style={styles.logo} />
+        <Image source={require('../../assets/Logo_ItaliAnto.png')} style={styles.logo} resizeMode="contain" />
         <ThemeToggle />
       </View>
 

@@ -89,14 +89,6 @@ export default function TranslatorScreen() {
   };
 
   const getLanguageFlag = (lang: Language): string => {
-    if (Platform.OS === 'web') {
-      switch (lang) {
-        case 'es': return 'ES';
-        case 'en': return 'EN';
-        case 'it': return 'IT';
-        default: return '';
-      }
-    }
     switch (lang) {
       case 'es': return '🇪🇸';
       case 'en': return '🇬🇧';
@@ -123,7 +115,7 @@ export default function TranslatorScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header con logo y toggle de tema */}
         <View style={styles.headerContainer}>
-          <Image source={require('../../assets/Logo_ItaliAnto.png')} style={styles.logo} />
+          <Image source={require('../../assets/Logo_ItaliAnto.png')} style={styles.logo} resizeMode="contain" />
           <ThemeToggle />
         </View>
 
@@ -149,9 +141,9 @@ export default function TranslatorScreen() {
                 }}
                 style={styles.picker}
               >
-                <Picker.Item label={Platform.OS === 'web' ? 'ES Spagnolo' : '🇪🇸 Spagnolo'} value="es" />
-                <Picker.Item label={Platform.OS === 'web' ? 'EN Inglese' : '🇬🇧 Inglese'} value="en" />
-                <Picker.Item label={Platform.OS === 'web' ? 'IT Italiano' : '🇮🇹 Italiano'} value="it" />
+                <Picker.Item label="🇪🇸 Spagnolo" value="es" />
+                <Picker.Item label="🇬🇧 Inglese" value="en" />
+                <Picker.Item label="🇮🇹 Italiano" value="it" />
               </Picker>
             </View>
           </View>
@@ -178,9 +170,9 @@ export default function TranslatorScreen() {
                 }}
                 style={styles.picker}
               >
-                <Picker.Item label={Platform.OS === 'web' ? 'ES Spagnolo' : '🇪🇸 Spagnolo'} value="es" />
-                <Picker.Item label={Platform.OS === 'web' ? 'EN Inglese' : '🇬🇧 Inglese'} value="en" />
-                <Picker.Item label={Platform.OS === 'web' ? 'IT Italiano' : '🇮🇹 Italiano'} value="it" />
+                <Picker.Item label="🇪🇸 Spagnolo" value="es" />
+                <Picker.Item label="🇬🇧 Inglese" value="en" />
+                <Picker.Item label="🇮🇹 Italiano" value="it" />
               </Picker>
             </View>
           </View>

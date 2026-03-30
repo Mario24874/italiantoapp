@@ -55,7 +55,7 @@ export default function ConjugatorScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header con logo y toggle de tema */}
         <View style={styles.headerContainer}>
-          <Image source={require('../../assets/Logo_ItaliAnto.png')} style={styles.logo} />
+          <Image source={require('../../assets/Logo_ItaliAnto.png')} style={styles.logo} resizeMode="contain" />
           <ThemeToggle />
         </View>
         
