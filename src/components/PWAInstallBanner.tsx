@@ -128,28 +128,26 @@ export default function PWAInstallBanner() {
         </View>
 
         <View style={styles.textWrap}>
-          <Text style={styles.title}>
-            {mode === 'ios' ? 'Aggiungi alla schermata home' : 'Installa ItaliantoApp'}
-          </Text>
-          <Text style={styles.subtitle}>
-            {mode === 'ios'
-              ? 'Tocca condividi → "Aggiungi a schermata Home"'
-              : (window as any).__pwaPrompt
-                ? 'Accesso rapido senza browser'
-                : 'Menu (⋮) → "Aggiungi a schermata Home"'}
-          </Text>
+          <Text style={styles.title}>Installa ItaliantoApp</Text>
+          {mode === 'android' && (window as any).__pwaPrompt ? (
+            <Text style={styles.subtitle}>Accesso rapido senza browser</Text>
+          ) : mode === 'android' ? (
+            <View style={styles.stepsWrap}>
+              <Text style={styles.step}>1. Tocca <Text style={styles.stepHighlight}>⋮</Text> in alto a destra nel browser</Text>
+              <Text style={styles.step}>2. Seleziona <Text style={styles.stepHighlight}>"Aggiungi a schermata Home"</Text></Text>
+            </View>
+          ) : (
+            <View style={styles.stepsWrap}>
+              <Text style={styles.step}>1. Tocca <Text style={styles.stepHighlight}>Condividi</Text> in basso (Safari)</Text>
+              <Text style={styles.step}>2. Seleziona <Text style={styles.stepHighlight}>"Aggiungi a schermata Home"</Text></Text>
+            </View>
+          )}
         </View>
 
         {mode === 'android' && (window as any).__pwaPrompt && (
           <TouchableOpacity style={styles.installBtn} onPress={handleInstall} activeOpacity={0.8}>
             <Text style={styles.installBtnText}>Installa</Text>
           </TouchableOpacity>
-        )}
-
-        {(mode === 'ios' || (mode === 'android' && !(window as any).__pwaPrompt)) && (
-          <View style={styles.iosHint}>
-            <Ionicons name={mode === 'ios' ? 'share-outline' : 'ellipsis-vertical'} size={18} color={colors.primary} />
-          </View>
         )}
 
         <TouchableOpacity
@@ -216,6 +214,19 @@ const getStyles = (colors: any) =>
       color: colors.textSecondary,
       marginTop: 2,
       lineHeight: 15,
+    },
+    stepsWrap: {
+      marginTop: 3,
+      gap: 2,
+    },
+    step: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      lineHeight: 16,
+    },
+    stepHighlight: {
+      fontWeight: '700',
+      color: colors.primary,
     },
     installBtn: {
       backgroundColor: colors.primary,
