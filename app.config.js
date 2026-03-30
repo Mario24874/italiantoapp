@@ -37,7 +37,7 @@ export default {
       }
     },
     web: {
-      favicon: "./assets/favicon.png",
+      favicon: "./assets/Logo_ItaliAnto.png",
       bundler: "metro",
       name: "ItaliAnto",
       shortName: "ItaliAnto",
