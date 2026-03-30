@@ -31,16 +31,18 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const formData = new URLSearchParams();
-    formData.append('auth_key', DEEPL_API_KEY);
-    formData.append('text', text);
-    formData.append('source_lang', source_lang.toUpperCase());
-    formData.append('target_lang', target_lang.toUpperCase());
-
+    // DeepL API v2 — usa Authorization header (auth_key en body está deprecado)
     const deeplResponse = await fetch(DEEPL_API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: formData.toString(),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `DeepL-Auth-Key ${DEEPL_API_KEY}`,
+      },
+      body: JSON.stringify({
+        text: [text],
+        source_lang: source_lang.toUpperCase(),
+        target_lang: target_lang.toUpperCase(),
+      }),
     });
 
     if (!deeplResponse.ok) {
