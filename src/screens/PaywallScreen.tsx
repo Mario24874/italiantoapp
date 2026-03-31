@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,39 +14,9 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+// Payments are handled centrally at italianto.com
+const ITALIANTO_PRICING_URL = 'https://italianto.com/precios';
 
-type PlanId = 'mensile' | 'annuale';
-
-const PLANS: {
-  id: PlanId;
-  name: string;
-  price: string;
-  period: string;
-  priceId: string | undefined;
-  popular: boolean;
-  badge: string | null;
-}[] = [
-  {
-    id: 'mensile',
-    name: 'Piano Mensile',
-    price: '$19.99',
-    period: 'al mese',
-    priceId: process.env.EXPO_PUBLIC_STRIPE_PRICE_MENSILE,
-    popular: false,
-    badge: null,
-  },
-  {
-    id: 'annuale',
-    name: 'Piano Annuale',
-    price: '$159.99',
-    period: "all'anno",
-    priceId: process.env.EXPO_PUBLIC_STRIPE_PRICE_ANNUALE,
-    popular: true,
-    badge: 'Risparmia il 33%',
-  },
-];
 
 const FEATURES = [
   { icon: 'chatbubbles' as const, text: 'Tutor AI per conversare in italiano' },
@@ -60,44 +29,13 @@ const FEATURES = [
 export default function PaywallScreen() {
   const navigation = useNavigation<any>();
   const { colors } = useTheme();
-  const { isSignedIn, userId, userEmail, isPremium, subscriptionPlan, refreshSubscription } = useAuth();
-  const { showSuccess, showError } = useToast();
-  const [selectedPlan, setSelectedPlan] = useState<PlanId>('annuale');
+  const { isSignedIn, isPremium, subscriptionPlan, refreshSubscription } = useAuth();
+  const { showError } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    };
-  }, []);
-
-  // Detect when premium becomes true during polling
-  useEffect(() => {
-    if (isPremium && pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-      setSuccess(true);
-      setLoading(false);
-    }
-  }, [isPremium]);
 
   const styles = getStyles(colors);
-
-  const startPolling = () => {
-    let attempts = 0;
-    pollIntervalRef.current = setInterval(async () => {
-      attempts++;
-      await refreshSubscription();
-      if (attempts >= 30) {
-        clearInterval(pollIntervalRef.current!);
-        pollIntervalRef.current = null;
-        setLoading(false);
-      }
-    }, 3000);
-  };
 
   const handleSubscribe = async () => {
     if (!isSignedIn) {
@@ -105,69 +43,22 @@ export default function PaywallScreen() {
       return;
     }
 
-    const plan = PLANS.find(p => p.id === selectedPlan)!;
-    if (!plan.priceId) {
-      setError('Configurazione prezzi non trovata');
-      return;
-    }
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      setError('Configurazione backend non trovata');
-      return;
-    }
-
     setLoading(true);
     setError('');
 
     try {
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/create-checkout-session`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({
-            userId,
-            userEmail,
-            priceId: plan.priceId,
-            planType: plan.id,
-          }),
-        }
+      // Payments are handled centrally at italianto.com
+      const result = await WebBrowser.openAuthSessionAsync(
+        ITALIANTO_PRICING_URL,
+        'italiantoapp://'
       );
 
-      const text = await response.text();
-      let data: any = {};
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(`Risposta non valida dal server: ${text.slice(0, 120)}`);
-      }
+      // After browser closes, refresh subscription to detect if user subscribed
+      await refreshSubscription();
+      setLoading(false);
 
-      if (!response.ok || data.error) {
-        throw new Error(data.error ?? `Errore HTTP ${response.status}`);
-      }
-
-      if (Platform.OS === 'web') {
-        // Web: open Stripe in a new tab and poll for subscription completion
-        window.open(data.url, '_blank');
-        startPolling();
-        // Keep loading=true while polling
-      } else {
-        // Native: use in-app browser with deep link redirect
-        const result = await WebBrowser.openAuthSessionAsync(
-          data.url,
-          'italiantoapp://'
-        );
-
-        const resultUrl = result.type === 'success' ? (result as any).url as string | undefined : undefined;
-        if (result.type === 'success' && resultUrl?.includes('status=success')) {
-          await refreshSubscription();
-          setSuccess(true);
-        } else if (result.type === 'cancel' || resultUrl?.includes('status=cancel')) {
-          // User closed or cancelled — no error
-        }
-        setLoading(false);
+      if (isPremium) {
+        setSuccess(true);
       }
     } catch (err: any) {
       const msg = err?.message ?? 'Errore imprevisto';
@@ -204,21 +95,9 @@ export default function PaywallScreen() {
   return (
     <View style={styles.container}>
       {/* Close button */}
-      <TouchableOpacity style={styles.closeButton} onPress={() => {
-        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-        navigation.goBack();
-      }}>
+      <TouchableOpacity style={styles.closeButton} onPress={() => navigation.goBack()}>
         <Ionicons name="close" size={28} color={colors.text} />
       </TouchableOpacity>
-
-      {loading && Platform.OS === 'web' && (
-        <View style={styles.pollingOverlay}>
-          <ActivityIndicator size="large" color="#667eea" />
-          <Text style={styles.pollingText}>
-            Completa il pagamento nel browser...{'\n'}La pagina si aggiornerà in automatico.
-          </Text>
-        </View>
-      )}
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -260,51 +139,6 @@ export default function PaywallScreen() {
           </View>
         )}
 
-        {/* Plan selector */}
-        {!isPremium && <Text style={styles.plansTitle}>Scegli il tuo piano</Text>}
-
-        {!isPremium && PLANS.map(plan => {
-          const isSelected = selectedPlan === plan.id;
-          return (
-            <TouchableOpacity
-              key={plan.id}
-              style={[
-                styles.planCard,
-                isSelected && styles.planCardSelected,
-                plan.popular && styles.planCardPopular,
-              ]}
-              onPress={() => setSelectedPlan(plan.id)}
-              activeOpacity={0.85}
-            >
-              {plan.popular && (
-                <View style={styles.popularBadge}>
-                  <Text style={styles.popularBadgeText}>Più Popolare</Text>
-                </View>
-              )}
-              <View style={styles.planRow}>
-                <View style={styles.radioWrap}>
-                  <View style={[styles.radio, isSelected && styles.radioActive]} />
-                </View>
-                <View style={styles.planInfo}>
-                  <Text style={[styles.planName, isSelected && styles.planNameSelected]}>
-                    {plan.name}
-                  </Text>
-                  {plan.badge && (
-                    <View style={styles.savingsPill}>
-                      <Text style={styles.savingsPillText}>{plan.badge}</Text>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.priceBlock}>
-                  <Text style={[styles.price, isSelected && styles.priceSelected]}>
-                    {plan.price}
-                  </Text>
-                  <Text style={styles.period}>{plan.period}</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
 
         {/* CTA si ya es Premium */}
         {isPremium && (
@@ -458,102 +292,6 @@ const getStyles = (colors: any) =>
       fontSize: 14,
       color: colors.text,
       fontWeight: '500',
-    },
-    plansTitle: {
-      fontSize: 17,
-      fontWeight: '700',
-      color: colors.text,
-      marginBottom: 12,
-    },
-    planCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      borderWidth: 2,
-      borderColor: colors.border,
-      marginBottom: 12,
-      overflow: 'hidden',
-    },
-    planCardSelected: {
-      borderColor: '#667eea',
-    },
-    planCardPopular: {
-      // extra style handled by popularBadge
-    },
-    popularBadge: {
-      backgroundColor: '#667eea',
-      paddingVertical: 4,
-      paddingHorizontal: 14,
-      alignItems: 'center',
-    },
-    popularBadgeText: {
-      color: '#fff',
-      fontSize: 12,
-      fontWeight: '700',
-      letterSpacing: 0.5,
-    },
-    planRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      padding: 16,
-      gap: 12,
-    },
-    radioWrap: {
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      borderWidth: 2,
-      borderColor: colors.border,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    radio: {
-      width: 10,
-      height: 10,
-      borderRadius: 5,
-      backgroundColor: 'transparent',
-    },
-    radioActive: {
-      backgroundColor: '#667eea',
-    },
-    planInfo: {
-      flex: 1,
-      gap: 4,
-    },
-    planName: {
-      fontSize: 15,
-      fontWeight: '600',
-      color: colors.text,
-    },
-    planNameSelected: {
-      color: '#667eea',
-    },
-    savingsPill: {
-      backgroundColor: '#e8f5e9',
-      borderRadius: 10,
-      paddingHorizontal: 8,
-      paddingVertical: 2,
-      alignSelf: 'flex-start',
-    },
-    savingsPillText: {
-      color: '#2e7d32',
-      fontSize: 11,
-      fontWeight: '700',
-    },
-    priceBlock: {
-      alignItems: 'flex-end',
-    },
-    price: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: colors.text,
-    },
-    priceSelected: {
-      color: '#667eea',
-    },
-    period: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      marginTop: 2,
     },
     errorBox: {
       flexDirection: 'row',
