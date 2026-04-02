@@ -24,7 +24,12 @@ function getClient(): SupabaseClient | null {
 export interface SupabaseUser {
   id: string;
   email: string;
-  revenuecat_customer_id?: string;
+  full_name?: string;
+  avatar_url?: string;
+  stripe_customer_id?: string;
+  plan_type?: 'free' | 'essenziale' | 'avanzato' | 'maestro';
+  signup_app?: string;
+  preferred_language?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -33,10 +38,13 @@ export interface SupabaseSubscription {
   id?: string;
   user_id: string;
   status: 'active' | 'canceled' | 'past_due' | 'free';
-  plan_type: 'free' | 'mensile' | 'annuale' | 'lifetime';
+  plan_type: 'free' | 'essenziale' | 'avanzato' | 'maestro';
+  billing_interval?: 'month' | 'year';
+  price_id?: string;
+  amount?: number;
+  currency?: string;
   current_period_end?: string;
-  tutor_sessions_used_this_month: number;
-  tutor_minutes_used_this_month: number;
+  tutor_minutes_used: number;
   tutor_minutes_reset_at?: string;
   updated_at?: string;
 }
@@ -44,9 +52,9 @@ export interface SupabaseSubscription {
 // Límite de minutos mensuales por plan
 export const TUTOR_MINUTE_LIMITS: Record<string, number> = {
   free: 0,
-  mensile: 60,
-  annuale: 90,
-  lifetime: 999,
+  essenziale: 60,
+  avanzato: 90,
+  maestro: 999,
 };
 
 export class SupabaseService {
@@ -58,14 +66,21 @@ export class SupabaseService {
    * Crea o actualiza el registro del usuario en Supabase.
    * Se llama automáticamente tras sign in / sign up exitoso.
    */
-  static async upsertUser(userId: string, email: string): Promise<void> {
+  static async upsertUser(userId: string, email: string, extras?: Partial<SupabaseUser>): Promise<void> {
     const client = getClient();
     if (!client) return;
 
     const { error } = await client
       .from('users')
       .upsert(
-        { id: userId, email, updated_at: new Date().toISOString() },
+        {
+          id: userId,
+          email,
+          signup_app: 'italianto_app',
+          preferred_language: 'es',
+          ...extras,
+          updated_at: new Date().toISOString(),
+        },
         { onConflict: 'id' }
       );
 
@@ -80,17 +95,19 @@ export class SupabaseService {
     const client = getClient();
     if (!client) return null;
 
+    // Filtrar solo suscripciones activas — evita el fallo de .single() cuando
+    // el usuario tiene múltiples filas (free + active) en la tabla subscriptions
     const { data, error } = await client
       .from('subscriptions')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .in('status', ['active', 'trialing'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (error) {
-      // PGRST116 = row not found — esperado para usuarios free sin suscripción
-      if (error.code !== 'PGRST116') {
-        console.error('[Supabase] getSubscription:', error.message);
-      }
+      console.error('[Supabase] getSubscription:', error.message);
       return null;
     }
 
@@ -105,14 +122,20 @@ export class SupabaseService {
     const client = getClient();
     if (!client) return;
 
-    const existing = await this.getSubscription(userId);
+    // Verificar si existe CUALQUIER suscripción (no solo activas)
+    const { data: existing } = await client
+      .from('subscriptions')
+      .select('id')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle();
     if (existing) return;
 
     const { error } = await client.from('subscriptions').insert({
       user_id: userId,
       status: 'free',
       plan_type: 'free',
-      tutor_sessions_used_this_month: 0,
+      tutor_minutes_used: 0,
     });
 
     // 23505 = unique constraint violated (ya existe) — ignorar
@@ -143,25 +166,21 @@ export class SupabaseService {
       return 0;
     }
 
-    return sub.tutor_minutes_used_this_month ?? 0;
+    return sub.tutor_minutes_used ?? 0;
   }
 
   /**
-   * Agrega minutos usados al contador mensual del usuario.
+   * Agrega minutos usados al contador del usuario via RPC increment_quota.
    */
   static async addTutorMinutes(userId: string, minutes: number): Promise<void> {
     const client = getClient();
     if (!client || minutes <= 0) return;
 
-    const current = await this.getTutorMinutesUsed(userId);
-
-    const { error } = await client
-      .from('subscriptions')
-      .update({
-        tutor_minutes_used_this_month: current + minutes,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', userId);
+    const { error } = await client.rpc('increment_quota', {
+      p_user_id: userId,
+      p_column: 'tutor_minutes_used',
+      p_amount: minutes,
+    });
 
     if (error) console.error('[Supabase] addTutorMinutes:', error.message);
   }
@@ -176,7 +195,7 @@ export class SupabaseService {
     await client
       .from('subscriptions')
       .update({
-        tutor_minutes_used_this_month: 0,
+        tutor_minutes_used: 0,
         tutor_minutes_reset_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -194,12 +213,18 @@ export class SupabaseService {
     const client = getClient();
     if (!client) return;
 
-    await client.from('tutor_sessions').insert({
-      user_id: userId,
-      duration_seconds: durationSeconds,
-      errors_corrected: errorsCorrecteds,
-    });
+    const minutes = Math.ceil(durationSeconds / 60);
+    if (minutes > 0) {
+      await this.addTutorMinutes(userId, minutes);
+    }
+  }
 
-    await client.rpc('increment_tutor_sessions', { p_user_id: userId });
+  /**
+   * Keep-alive para mantener la conexión con Supabase activa.
+   */
+  static async keepAlive(): Promise<void> {
+    const client = getClient();
+    if (!client) return;
+    await client.rpc('keep_alive');
   }
 }
