@@ -18,8 +18,6 @@ import * as Linking from 'expo-linking';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 
-WebBrowser.maybeCompleteAuthSession();
-
 type Step = 'register' | 'verify';
 
 export default function SignUpScreen() {
@@ -52,21 +50,30 @@ export default function SignUpScreen() {
     try {
       const redirectUrl = Platform.OS === 'web'
         ? window.location.origin
-        : Linking.createURL('/oauth-native-callback', { scheme: 'italiantoapp' });
+        : Linking.createURL('oauth-native-callback', { scheme: 'italiantoapp' });
 
       const { createdSessionId, setActive: setActiveOAuth } = await startOAuthFlow({ redirectUrl });
 
       if (createdSessionId && setActiveOAuth) {
         await setActiveOAuth({ session: createdSessionId });
         navigation.goBack();
+      } else {
+        setError('Google Sign-In no completado. Verifica tu conexión e intenta de nuevo.');
       }
     } catch (err: any) {
-      setError(err?.errors?.[0]?.message ?? 'Error con Google Sign-In');
+      const msg = err?.errors?.[0]?.longMessage
+        ?? err?.errors?.[0]?.message
+        ?? err?.message
+        ?? 'Error con Google Sign-In';
+      setError(msg);
     }
   };
 
   const handleRegister = async () => {
-    if (!isLoaded || !signUp) return;
+    if (!isLoaded || !signUp) {
+      setError('Autenticación no disponible. Reinicia la aplicación.');
+      return;
+    }
     if (!email.trim() || !password || !confirmPassword) {
       setError('Compila tutti i campi');
       return;

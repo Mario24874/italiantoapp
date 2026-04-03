@@ -18,8 +18,6 @@ import * as Linking from 'expo-linking';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 
-WebBrowser.maybeCompleteAuthSession();
-
 export default function SignInScreen() {
   const { signIn, setActive, isLoaded } = useSignIn();
   const navigation = useNavigation<any>();
@@ -47,21 +45,30 @@ export default function SignInScreen() {
     try {
       const redirectUrl = Platform.OS === 'web'
         ? window.location.origin
-        : Linking.createURL('/oauth-native-callback', { scheme: 'italiantoapp' });
+        : Linking.createURL('oauth-native-callback', { scheme: 'italiantoapp' });
 
       const { createdSessionId, setActive: setActiveOAuth } = await startOAuthFlow({ redirectUrl });
 
       if (createdSessionId && setActiveOAuth) {
         await setActiveOAuth({ session: createdSessionId });
         navigation.goBack();
+      } else {
+        setError('Google Sign-In no completado. Verifica tu conexión e intenta de nuevo.');
       }
     } catch (err: any) {
-      setError(err?.errors?.[0]?.message ?? 'Error con Google Sign-In');
+      const msg = err?.errors?.[0]?.longMessage
+        ?? err?.errors?.[0]?.message
+        ?? err?.message
+        ?? 'Error con Google Sign-In';
+      setError(msg);
     }
   };
 
   const handleSignIn = async () => {
-    if (!isLoaded || !signIn) return;
+    if (!isLoaded || !signIn) {
+      setError('Autenticación no disponible. Reinicia la aplicación.');
+      return;
+    }
     if (!email.trim() || !password) {
       setError('Inserisci email e password');
       return;
@@ -81,7 +88,10 @@ export default function SignInScreen() {
         navigation.goBack();
       }
     } catch (err: any) {
-      const msg = err?.errors?.[0]?.message ?? 'Errore durante l\'accesso';
+      const code = err?.errors?.[0]?.code ?? '';
+      const msg = code === 'strategy_for_user_invalid'
+        ? 'Questo account usa Google. Usa il pulsante "Continua con Google".'
+        : err?.errors?.[0]?.longMessage ?? err?.errors?.[0]?.message ?? 'Errore durante l\'accesso';
       setError(msg);
     } finally {
       setLoading(false);

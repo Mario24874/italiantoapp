@@ -186,7 +186,13 @@ export default function TutorScreen() {
 
   // ─── Registrar eventos Vapi ───────────────────────────────────────────────
   useEffect(() => {
-    const vapi = getVapi();
+    let vapi: InstanceType<typeof Vapi>;
+    try {
+      vapi = getVapi();
+    } catch (err: any) {
+      setError(err?.message ?? 'Tutor AI no disponibile su questo dispositivo');
+      return;
+    }
 
     const onCallStart = () => {
       setCallStatus('active');
@@ -235,6 +241,7 @@ export default function TutorScreen() {
     vapi.on('error', onError);
 
     return () => {
+      if (!vapi) return;
       vapi.off('call-start', onCallStart);
       vapi.off('call-end', onCallEnd);
       vapi.off('speech-start', onSpeechStart);
@@ -470,7 +477,7 @@ export default function TutorScreen() {
         </View>
         <View style={styles.quotaBar}>
           <View style={[styles.quotaFill, {
-            width: `${Math.min(100, (minutesUsed / minuteLimit) * 100)}%` as any,
+            width: `${minuteLimit > 0 ? Math.min(100, (minutesUsed / minuteLimit) * 100) : 0}%` as any,
             backgroundColor: minutesRemaining <= 10 ? '#e53935' :
                              minutesRemaining <= 20 ? '#f57c00' : '#667eea',
           }]} />

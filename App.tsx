@@ -18,6 +18,7 @@ import PronunciationScreen from './src/screens/PronunciationScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import SignInScreen from './src/screens/auth/SignInScreen';
 import SignUpScreen from './src/screens/auth/SignUpScreen';
+import OAuthNativeCallback from './src/screens/auth/OAuthNativeCallback';
 import PaywallScreen from './src/screens/PaywallScreen';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { ToastProvider } from './src/context/ToastContext';
@@ -31,6 +32,17 @@ registerServiceWorker();
 
 const Tab = createBottomTabNavigator();
 const RootStack = createNativeStackNavigator();
+
+// Deep link config: maps italiantoapp://oauth-native-callback → OAuthNativeCallback screen
+// Required for WebBrowser.maybeCompleteAuthSession() to run on the OAuth redirect
+const linking = {
+  prefixes: ['italiantoapp://', 'italiantoapp:///'],
+  config: {
+    screens: {
+      OAuthNativeCallback: 'oauth-native-callback',
+    },
+  },
+};
 
 // Token cache para Clerk:
 // - Web: usa localStorage (expo-secure-store no funciona en browser)
@@ -177,6 +189,12 @@ function RootNavigator() {
         component={PaywallScreen}
         options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
       />
+      {/* OAuth redirect target — never shown, only handles maybeCompleteAuthSession */}
+      <RootStack.Screen
+        name="OAuthNativeCallback"
+        component={OAuthNativeCallback}
+        options={{ headerShown: false }}
+      />
     </RootStack.Navigator>
   );
 }
@@ -190,7 +208,7 @@ export default function App() {
       <ThemeProvider>
         <ToastProvider>
           <AuthProvider>
-            <NavigationContainer>
+            <NavigationContainer linking={linking}>
               <RootNavigator />
             </NavigationContainer>
             <PWAInstallBanner />
@@ -201,7 +219,11 @@ export default function App() {
   );
 
   const content = CLERK_KEY ? (
-    <ClerkProvider publishableKey={CLERK_KEY} tokenCache={tokenCache}>
+    <ClerkProvider
+      publishableKey={CLERK_KEY}
+      tokenCache={tokenCache}
+      allowedRedirectProtocols={['italiantoapp:']}
+    >
       {inner}
     </ClerkProvider>
   ) : inner;

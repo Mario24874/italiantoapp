@@ -19,17 +19,25 @@ export default {
       supportsTablet: true,
       bundleIdentifier: "com.italiantoapp.app",
       infoPlist: {
-        NSMicrophoneUsageDescription: "Questa app richiede l'accesso al microfono per la pratica di pronuncia."
+        NSMicrophoneUsageDescription: "Questa app richiede l'accesso al microfono per la pratica di pronuncia e per conversare con il Tutor AI.",
+        NSCameraUsageDescription: "Questa app richiede l'accesso alla fotocamera per le chiamate con il Tutor AI."
       }
     },
     android: {
       package: "com.italiantoapp.app",
-      versionCode: 3,
+      versionCode: 4,
       minSdkVersion: 24,
       permissions: [
         "android.permission.RECORD_AUDIO",
         "android.permission.INTERNET",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.WAKE_LOCK",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_CAMERA",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       adaptiveIcon: {
         foregroundImage: "./assets/Logo_ItaliAnto.png",
@@ -58,7 +66,8 @@ export default {
       "expo-dev-client",
       "expo-secure-store",
       "@react-native-voice/voice",
-      "./plugins/withMinSdkVersion"
+      "./plugins/withMinSdkVersion",
+      "./plugins/withDailyService"
     ],
     extra: {
       eas: {

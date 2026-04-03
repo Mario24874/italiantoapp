@@ -13,6 +13,9 @@ class TutorErrorBoundary extends React.Component<
   static getDerivedStateFromError(e: any) {
     return { hasError: true, error: e?.message ?? 'Error desconocido' };
   }
+  componentDidCatch(e: any) {
+    console.error('[TutorTab] Error boundary caught:', e);
+  }
   render() {
     if (this.state.hasError) {
       return (
