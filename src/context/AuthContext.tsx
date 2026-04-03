@@ -9,7 +9,7 @@ export interface AuthContextValue {
   userEmail: string | null;
   clerkConfigured: boolean;
   isPremium: boolean;
-  subscriptionPlan: 'free' | 'mensile' | 'annuale' | null;
+  subscriptionPlan: 'free' | 'essenziale' | 'avanzato' | 'maestro' | null;
   refreshSubscription: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -41,7 +41,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
 
   const [isPremium, setIsPremium] = useState(false);
-  const [subscriptionPlan, setSubscriptionPlan] = useState<'free' | 'mensile' | 'annuale' | null>(null);
+  const [subscriptionPlan, setSubscriptionPlan] = useState<'free' | 'essenziale' | 'avanzato' | 'maestro' | null>(null);
 
   const refreshSubscription = useCallback(async () => {
     if (!userId) return;
