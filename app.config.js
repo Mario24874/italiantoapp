@@ -25,7 +25,7 @@ export default {
     },
     android: {
       package: "com.italiantoapp.app",
-      versionCode: 4,
+      versionCode: 5,
       minSdkVersion: 24,
       permissions: [
         "android.permission.RECORD_AUDIO",
@@ -65,9 +65,10 @@ export default {
     plugins: [
       "expo-dev-client",
       "expo-secure-store",
+      "@config-plugins/react-native-webrtc",
+      "@daily-co/config-plugin-rn-daily-js",
       "@react-native-voice/voice",
       "./plugins/withMinSdkVersion",
-      "./plugins/withDailyService"
     ],
     extra: {
       eas: {

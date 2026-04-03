@@ -1603,7 +1603,6 @@ export class TranslationService {
       const targetLangCode = 'IT';
 
       const formData = new URLSearchParams();
-      formData.append('auth_key', this.DEEPL_API_KEY);
       formData.append('text', text);
       formData.append('source_lang', sourceLangCode);
       formData.append('target_lang', targetLangCode);
@@ -1613,6 +1612,7 @@ export class TranslationService {
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `DeepL-Auth-Key ${this.DEEPL_API_KEY}`,
         },
         body: formData.toString()
       });
@@ -1676,14 +1676,16 @@ export class TranslationService {
           return null;
         }
         const formData = new URLSearchParams();
-        formData.append('auth_key', this.DEEPL_API_KEY);
         formData.append('text', text);
         formData.append('source_lang', sourceLangCode);
         formData.append('target_lang', targetLangCode);
         response = await fetch(this.DEEPL_API_URL, {
           method: 'POST',
           signal: controller.signal,
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `DeepL-Auth-Key ${this.DEEPL_API_KEY}`,
+          },
           body: formData.toString(),
         });
       }

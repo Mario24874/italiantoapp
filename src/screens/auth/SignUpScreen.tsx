@@ -10,11 +10,13 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { useSignUp, useOAuth } from '@clerk/clerk-expo';
+import { useSignUp, useSSO } from '@clerk/clerk-expo';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+
+WebBrowser.maybeCompleteAuthSession();
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -33,7 +35,7 @@ export default function SignUpScreen() {
     }
   }, [isSignedIn]);
 
-  const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
+  const { startSSOFlow } = useSSO();
 
   const [step, setStep] = useState<Step>('register');
   const [email, setEmail] = useState('');
@@ -48,11 +50,15 @@ export default function SignUpScreen() {
 
   const handleGoogleSignUp = async () => {
     try {
+      await WebBrowser.warmUpAsync();
       const redirectUrl = Platform.OS === 'web'
         ? window.location.origin
         : Linking.createURL('oauth-native-callback', { scheme: 'italiantoapp' });
 
-      const { createdSessionId, setActive: setActiveOAuth } = await startOAuthFlow({ redirectUrl });
+      const { createdSessionId, setActive: setActiveOAuth } = await startSSOFlow({
+        strategy: 'oauth_google',
+        redirectUrl,
+      });
 
       if (createdSessionId && setActiveOAuth) {
         await setActiveOAuth({ session: createdSessionId });
@@ -66,6 +72,8 @@ export default function SignUpScreen() {
         ?? err?.message
         ?? 'Error con Google Sign-In';
       setError(msg);
+    } finally {
+      await WebBrowser.coolDownAsync();
     }
   };
 
