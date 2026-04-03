@@ -31,7 +31,7 @@
         "EXPO_PUBLIC_VAPI_ASSISTANT_ID": "cefa9428-a243-4526-a44b-19900919580a",
         "EXPO_PUBLIC_ELEVENLABS_API_KEY": "e43af4b467b28d5964ec74f951bf9feaee82c083fda6d2f2e34da27280ca41c2",
         "EXPO_PUBLIC_ELEVENLABS_VOICE_ID": "b8jhBTcGAq4kQGWmKprT",
-        "DEEPL_API_KEY": "71ff8838-ffff-427b-812f-ebb76efe3e61:fx"
+        "EXPO_PUBLIC_DEEPL_API_KEY": "71ff8838-ffff-427b-812f-ebb76efe3e61:fx"
       }
     },
     "production": {
@@ -50,7 +50,7 @@
         "EXPO_PUBLIC_VAPI_ASSISTANT_ID": "cefa9428-a243-4526-a44b-19900919580a",
         "EXPO_PUBLIC_ELEVENLABS_API_KEY": "e43af4b467b28d5964ec74f951bf9feaee82c083fda6d2f2e34da27280ca41c2",
         "EXPO_PUBLIC_ELEVENLABS_VOICE_ID": "b8jhBTcGAq4kQGWmKprT",
-        "DEEPL_API_KEY": "71ff8838-ffff-427b-812f-ebb76efe3e61:fx"
+        "EXPO_PUBLIC_DEEPL_API_KEY": "71ff8838-ffff-427b-812f-ebb76efe3e61:fx"
       }
     }
   },

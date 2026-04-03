@@ -1426,7 +1426,7 @@ export class TranslationService {
   private static phraseCache = new Map<string, string>();
 
   // DeepL API configuration
-  private static readonly DEEPL_API_KEY = Constants.expoConfig?.extra?.deeplApiKey || '';
+  private static readonly DEEPL_API_KEY = process.env.EXPO_PUBLIC_DEEPL_API_KEY || Constants.expoConfig?.extra?.deeplApiKey || '';
   private static readonly DEEPL_API_URL = 'https://api-free.deepl.com/v2/translate';
   // On web, use Supabase proxy to avoid CORS restrictions
   private static readonly SUPABASE_TRANSLATE_URL = 'https://zhpnoohdefnigumjgxbc.supabase.co/functions/v1/translate';
