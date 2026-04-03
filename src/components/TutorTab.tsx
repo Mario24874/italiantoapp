@@ -1,9 +1,14 @@
-// Nativo: carga TutorScreen lazy para evitar que @vapi-ai/react-native
-// (WebRTC) inicialice al arrancar la app.
+// On Android: @vapi-ai/react-native triggers a WebRTC JNI crash on import.
+// Load TutorScreenAndroid (no native deps) instead of TutorScreen.
+// On web/iOS: load TutorScreen normally via React.lazy.
 import React from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator, Platform } from 'react-native';
 
-const TutorScreen = React.lazy(() => import('../screens/TutorScreen'));
+const TutorScreen = React.lazy(() =>
+  Platform.OS === 'android'
+    ? import('../screens/TutorScreenAndroid')
+    : import('../screens/TutorScreen')
+);
 
 class TutorErrorBoundary extends React.Component<
   { children: React.ReactNode },

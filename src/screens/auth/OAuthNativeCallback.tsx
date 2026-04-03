@@ -1,12 +1,23 @@
+import { useEffect } from 'react';
+import { useClerk } from '@clerk/clerk-expo';
+import { useNavigation } from '@react-navigation/native';
 import * as WebBrowser from 'expo-web-browser';
 
-// IMPORTANT: Must be called at module level here — this screen is loaded
-// when the deep link `italiantoapp://oauth-native-callback` fires on Android,
-// which signals expo-web-browser to complete the pending auth session.
+// Must be at module scope: closes the Chrome Custom Tab / Edge Custom Tab
+// and resolves the pending startSSOFlow() promise in SignInScreen/SignUpScreen.
 WebBrowser.maybeCompleteAuthSession();
 
 export default function OAuthNativeCallback() {
-  // This screen is never visible to the user. It only exists to trigger
-  // maybeCompleteAuthSession() when the OAuth redirect brings the user back.
+  const { session } = useClerk();
+  const navigation = useNavigation<any>();
+
+  useEffect(() => {
+    // Safety net: if the session was established (either via startSSOFlow resolving
+    // normally or via the deep link callback on a fresh app instance), navigate home.
+    if (session) {
+      navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+    }
+  }, [session]);
+
   return null;
 }

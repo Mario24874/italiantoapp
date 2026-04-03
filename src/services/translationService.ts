@@ -1602,19 +1602,14 @@ export class TranslationService {
       const sourceLangCode = sourceLang === 'es' ? 'ES' : 'EN';
       const targetLangCode = 'IT';
 
-      const formData = new URLSearchParams();
-      formData.append('text', text);
-      formData.append('source_lang', sourceLangCode);
-      formData.append('target_lang', targetLangCode);
-
-      const response = await fetch(this.DEEPL_API_URL, {
+      // All platforms use Supabase proxy — eliminates DeepL auth issues on native
+      const response = await fetch(this.SUPABASE_TRANSLATE_URL, {
         method: 'POST',
         signal: controller.signal,
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': `DeepL-Auth-Key ${this.DEEPL_API_KEY}`,
+          'Content-Type': 'application/json',
         },
-        body: formData.toString()
+        body: JSON.stringify({ text, source_lang: sourceLangCode, target_lang: 'IT' }),
       });
 
       clearTimeout(timeoutId);
@@ -1657,38 +1652,15 @@ export class TranslationService {
       const sourceLangCode = langMap[sourceLang];
       const targetLangCode = langMap[targetLang];
 
-      let response: Response;
-
-      if (Platform.OS === 'web') {
-        // Use Supabase proxy to avoid CORS (JWT verification disabled on function)
-        response = await fetch(this.SUPABASE_TRANSLATE_URL, {
-          method: 'POST',
-          signal: controller.signal,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ text, source_lang: sourceLangCode, target_lang: targetLangCode }),
-        });
-      } else {
-        // Native: call DeepL directly
-        if (!this.DEEPL_API_KEY || this.DEEPL_API_KEY === '') {
-          clearTimeout(timeoutId);
-          return null;
-        }
-        const formData = new URLSearchParams();
-        formData.append('text', text);
-        formData.append('source_lang', sourceLangCode);
-        formData.append('target_lang', targetLangCode);
-        response = await fetch(this.DEEPL_API_URL, {
-          method: 'POST',
-          signal: controller.signal,
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `DeepL-Auth-Key ${this.DEEPL_API_KEY}`,
-          },
-          body: formData.toString(),
-        });
-      }
+      // All platforms use Supabase proxy — eliminates DeepL auth/CORS issues on native
+      const response = await fetch(this.SUPABASE_TRANSLATE_URL, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text, source_lang: sourceLangCode, target_lang: targetLangCode }),
+      });
 
       clearTimeout(timeoutId);
 
