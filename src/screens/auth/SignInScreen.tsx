@@ -46,9 +46,13 @@ export default function SignInScreen() {
   const handleGoogleSignIn = async () => {
     try {
       await WebBrowser.warmUpAsync();
+
+      // Hardcoded to match EXACTLY what's in the Clerk Native Applications allowlist.
+      // Linking.createURL() on Android generates triple-slash (italiantoapp:///)
+      // which doesn't match and causes Clerk to fall back to the web app URL.
       const redirectUrl = Platform.OS === 'web'
         ? window.location.origin
-        : Linking.createURL('oauth-native-callback', { scheme: 'italiantoapp' });
+        : 'italiantoapp://oauth-native-callback';
 
       const { createdSessionId, setActive: setActiveOAuth } = await startSSOFlow({
         strategy: 'oauth_google',
