@@ -9,18 +9,20 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Vapi from '@vapi-ai/react-native';
+import Voice, { SpeechResultsEvent, SpeechErrorEvent } from '@react-native-voice/voice';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 import { SupabaseService, TUTOR_MINUTE_LIMITS } from '../services/supabaseService';
 
-// ─── Configuración Vapi ───────────────────────────────────────────────────────
-const VAPI_PUBLIC_KEY = process.env.EXPO_PUBLIC_VAPI_PUBLIC_KEY!;
-const VAPI_ASSISTANT_ID = process.env.EXPO_PUBLIC_VAPI_ASSISTANT_ID!;
+const ITALIANTO_URL = process.env.EXPO_PUBLIC_ITALIANTO_URL ?? 'https://italianto.com';
+const ELEVENLABS_API_KEY = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY ?? '';
 
 // ─── Voces italianas curadas ──────────────────────────────────────────────────
 export const ITALIAN_VOICES = [
@@ -50,6 +52,26 @@ export const ITALIAN_VOICES = [
   },
 ];
 
+// ─── Tipos ────────────────────────────────────────────────────────────────────
+interface TutorConfig {
+  tutorName: string;
+  voiceId: string;
+  voiceName: string;
+  gender: 'male' | 'female';
+}
+
+interface ConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+interface TranscriptMessage {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
+type SessionState = 'idle' | 'starting' | 'listening' | 'processing' | 'speaking';
+
 const DEFAULT_CONFIG: TutorConfig = {
   tutorName: 'Marco',
   voiceId: ITALIAN_VOICES[0].id,
@@ -59,43 +81,49 @@ const DEFAULT_CONFIG: TutorConfig = {
 
 const STORAGE_KEY = 'tutor_config_v1';
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-interface TutorConfig {
-  tutorName: string;
-  voiceId: string;
-  voiceName: string;
-  gender: 'male' | 'female';
-}
+// ─── ElevenLabs TTS ───────────────────────────────────────────────────────────
+async function synthesizeSpeech(text: string, voiceId: string): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        method: 'POST',
+        headers: {
+          'xi-api-key': ELEVENLABS_API_KEY,
+          'Content-Type': 'application/json',
+          Accept: 'audio/mpeg',
+        },
+        body: JSON.stringify({
+          text,
+          model_id: 'eleven_multilingual_v2',
+          voice_settings: { stability: 0.5, similarity_boost: 0.8, style: 0.3 },
+        }),
+      }
+    );
 
-type CallStatus = 'idle' | 'connecting' | 'active' | 'ending';
+    if (!response.ok) {
+      console.error('[ElevenLabs TTS error]', response.status);
+      return null;
+    }
 
-interface TranscriptMessage {
-  role: 'user' | 'assistant';
-  text: string;
-}
+    const arrayBuffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    const base64 = btoa(binary);
 
-// ─── Instancia Vapi (singleton fuera del componente) ─────────────────────────
-let vapiInstance: Vapi | null = null;
-
-function getVapi(): Vapi {
-  if (!vapiInstance) {
-    vapiInstance = new Vapi(VAPI_PUBLIC_KEY);
+    const fileUri = (FileSystem.cacheDirectory ?? '') + 'tutor_speech.mp3';
+    await FileSystem.writeAsStringAsync(fileUri, base64, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    return fileUri;
+  } catch (err) {
+    console.error('[synthesizeSpeech]', err);
+    return null;
   }
-  return vapiInstance;
-}
-
-function buildSystemPrompt(tutorName: string): string {
-  return `Sei ${tutorName}, un tutor di italiano amichevole e paziente. Il tuo compito è aiutare l'utente a praticare l'italiano parlato.
-
-Regole fondamentali:
-- Parla SEMPRE in italiano, anche se l'utente ti scrive in un'altra lingua
-- Correggi gli errori grammaticali con gentilezza: ripeti la frase corretta e spiega brevemente l'errore
-- Adatta il livello di difficoltà in base alla capacità dimostrata dall'utente
-- Fai domande aperte per mantenere la conversazione fluente
-- Mantieni le risposte brevi (2-3 frasi) per un ritmo naturale
-- Ogni 4-5 scambi, dai un breve incoraggiamento sui progressi
-
-Se l'utente è principiante (A1-A2), puoi dare brevi spiegazioni in spagnolo o inglese solo quando strettamente necessario, poi torna subito all'italiano.`;
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
@@ -109,22 +137,27 @@ export default function TutorScreen() {
   const [config, setConfig] = useState<TutorConfig>(DEFAULT_CONFIG);
   const [editingConfig, setEditingConfig] = useState<TutorConfig>(DEFAULT_CONFIG);
   const [showConfig, setShowConfig] = useState(false);
-  const [callStatus, setCallStatus] = useState<CallStatus>('idle');
+  const [sessionState, setSessionState] = useState<SessionState>('idle');
   const [isTutorSpeaking, setIsTutorSpeaking] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptMessage[]>([]);
+  const [partialText, setPartialText] = useState('');
+  const [history, setHistory] = useState<ConversationMessage[]>([]);
   const [sessionSeconds, setSessionSeconds] = useState(0);
   const [minutesUsed, setMinutesUsed] = useState(0);
   const [error, setError] = useState('');
 
+  const soundRef = useRef<Audio.Sound | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionStartRef = useRef<number>(0);
   const scrollRef = useRef<ScrollView>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const activeRef = useRef(false); // tracks if session is still running
   const styles = getStyles(colors);
 
   const minutesRemaining = Math.max(0, minuteLimit - minutesUsed);
+  const isInSession = sessionState !== 'idle';
 
-  // ─── Cargar config guardada + minutos usados ──────────────────────────────
+  // ─── Load config + minutes used ──────────────────────────────────────────
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then(val => {
       if (val) {
@@ -138,7 +171,27 @@ export default function TutorScreen() {
     }
   }, [userId]);
 
-  // ─── Animación de pulso cuando habla el tutor ─────────────────────────────
+  // ─── Session timer ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (isInSession) {
+      if (sessionStartRef.current === 0) sessionStartRef.current = Date.now();
+      timerRef.current = setInterval(() => {
+        setSessionSeconds(s => {
+          const next = s + 1;
+          if (minutesRemaining > 0 && next >= minutesRemaining * 60) {
+            endSession();
+          }
+          return next;
+        });
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setSessionSeconds(0);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [isInSession, minutesRemaining]);
+
+  // ─── Pulse animation when tutor speaking ─────────────────────────────────
   useEffect(() => {
     if (isTutorSpeaking) {
       Animated.loop(
@@ -163,155 +216,239 @@ export default function TutorScreen() {
     }
   }, [isTutorSpeaking]);
 
-  // ─── Timer de sesión + control de quota ──────────────────────────────────
+  // ─── Voice event handlers ─────────────────────────────────────────────────
   useEffect(() => {
-    if (callStatus === 'active') {
-      sessionStartRef.current = Date.now();
-      timerRef.current = setInterval(() => {
-        setSessionSeconds(s => {
-          const next = s + 1;
-          // Cortar automáticamente si se agota el quota
-          if (minutesRemaining > 0 && next >= minutesRemaining * 60) {
-            endCall();
-          }
-          return next;
-        });
-      }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (callStatus === 'idle') setSessionSeconds(0);
-    }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [callStatus, minutesRemaining]);
-
-  // ─── Registrar eventos Vapi ───────────────────────────────────────────────
-  useEffect(() => {
-    let vapi: InstanceType<typeof Vapi>;
-    try {
-      vapi = getVapi();
-    } catch (err: any) {
-      setError(err?.message ?? 'Tutor AI no disponibile su questo dispositivo');
-      return;
-    }
-
-    const onCallStart = () => {
-      setCallStatus('active');
-      setError('');
-    };
-
-    const onCallEnd = async () => {
-      setCallStatus('idle');
-      setIsTutorSpeaking(false);
-      // Guardar minutos usados en Supabase
-      if (userId && sessionStartRef.current > 0) {
-        const elapsedMinutes = (Date.now() - sessionStartRef.current) / 60000;
-        sessionStartRef.current = 0;
-        if (elapsedMinutes > 0.1) {
-          await SupabaseService.addTutorMinutes(userId, elapsedMinutes);
-          const updated = await SupabaseService.getTutorMinutesUsed(userId);
-          setMinutesUsed(updated);
-        }
+    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
+      const text = e.value?.[0]?.trim() ?? '';
+      setPartialText('');
+      if (text && activeRef.current) {
+        sendUserMessage(text);
       }
     };
 
-    const onSpeechStart = () => setIsTutorSpeaking(true);
-    const onSpeechEnd = () => setIsTutorSpeaking(false);
+    Voice.onSpeechPartialResults = (e: any) => {
+      setPartialText(e.value?.[0] ?? '');
+    };
 
-    const onMessage = (msg: any) => {
-      if (msg.type === 'transcript' && msg.transcriptType === 'final') {
-        setTranscript(prev => [
-          ...prev,
-          { role: msg.role, text: msg.transcript },
-        ]);
-        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    Voice.onSpeechError = (e: SpeechErrorEvent) => {
+      const code = (e.error as any)?.code ?? '';
+      // Code 7 = "No match" (silence timeout), just restart if still in session
+      if (activeRef.current && code === '7') {
+        startListening();
+        return;
+      }
+      if (activeRef.current) {
+        console.warn('[Voice error]', e.error);
       }
     };
 
-    const onError = (err: any) => {
-      console.error('[Vapi]', err);
-      setError(err?.message ?? 'Errore durante la chiamata');
-      setCallStatus('idle');
+    Voice.onSpeechEnd = () => {
+      setPartialText('');
     };
-
-    vapi.on('call-start', onCallStart);
-    vapi.on('call-end', onCallEnd);
-    vapi.on('speech-start', onSpeechStart);
-    vapi.on('speech-end', onSpeechEnd);
-    vapi.on('message', onMessage);
-    vapi.on('error', onError);
 
     return () => {
-      if (!vapi) return;
-      vapi.off('call-start', onCallStart);
-      vapi.off('call-end', onCallEnd);
-      vapi.off('speech-start', onSpeechStart);
-      vapi.off('speech-end', onSpeechEnd);
-      vapi.off('message', onMessage);
-      vapi.off('error', onError);
+      Voice.onSpeechResults = undefined as any;
+      Voice.onSpeechPartialResults = undefined as any;
+      Voice.onSpeechError = undefined as any;
+      Voice.onSpeechEnd = undefined as any;
+      Voice.destroy().catch(() => {});
+    };
+  }, [config]);
+
+  // ─── Cleanup on unmount ───────────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      activeRef.current = false;
+      Voice.destroy().catch(() => {});
+      soundRef.current?.stopAsync().catch(() => {});
+      soundRef.current?.unloadAsync().catch(() => {});
     };
   }, []);
 
-  // ─── Guardar config ───────────────────────────────────────────────────────
+  // ─── Play TTS + resume mic when done ─────────────────────────────────────
+  const playTTS = useCallback(async (text: string, voiceId: string) => {
+    setIsTutorSpeaking(true);
+    setSessionState('speaking');
+
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+      });
+
+      const fileUri = await synthesizeSpeech(text, voiceId);
+
+      if (!fileUri || !activeRef.current) {
+        setIsTutorSpeaking(false);
+        if (activeRef.current) startListening();
+        return;
+      }
+
+      // Unload previous sound
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
+
+      const { sound } = await Audio.Sound.createAsync({ uri: fileUri });
+      soundRef.current = sound;
+
+      sound.setOnPlaybackStatusUpdate(status => {
+        if (!status.isLoaded) return;
+        if (status.didJustFinish) {
+          setIsTutorSpeaking(false);
+          sound.unloadAsync().catch(() => {});
+          soundRef.current = null;
+          if (activeRef.current) {
+            startListening();
+          }
+        }
+      });
+
+      await sound.playAsync();
+    } catch (err) {
+      console.error('[playTTS]', err);
+      setIsTutorSpeaking(false);
+      if (activeRef.current) startListening();
+    }
+  }, []);
+
+  // ─── Start listening via Voice ────────────────────────────────────────────
+  const startListening = useCallback(async () => {
+    if (!activeRef.current) return;
+    setSessionState('listening');
+    setPartialText('');
+
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+      await Voice.start('it-IT');
+    } catch (err) {
+      console.error('[startListening]', err);
+      // Retry once
+      setTimeout(() => {
+        if (activeRef.current) startListening();
+      }, 1000);
+    }
+  }, []);
+
+  // ─── Send user message to Gemini ──────────────────────────────────────────
+  const sendUserMessage = useCallback(async (text: string) => {
+    if (!activeRef.current) return;
+
+    try {
+      await Voice.stop();
+    } catch {}
+
+    setSessionState('processing');
+    setPartialText('');
+
+    const userMsg: ConversationMessage = { role: 'user', content: text };
+    const updatedHistory = [...history, userMsg];
+    setHistory(updatedHistory);
+    setTranscript(prev => [...prev, { role: 'user', text }]);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+
+    try {
+      const res = await fetch(`${ITALIANTO_URL}/api/tutor/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: updatedHistory,
+          tutorName: config.tutorName,
+        }),
+      });
+
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? 'Errore del tutor');
+      }
+
+      const { text: reply } = await res.json();
+
+      if (!activeRef.current) return;
+
+      const assistantMsg: ConversationMessage = { role: 'assistant', content: reply };
+      setHistory(prev => [...prev, assistantMsg]);
+      setTranscript(prev => [...prev, { role: 'assistant', text: reply }]);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+
+      await playTTS(reply, config.voiceId);
+    } catch (err: any) {
+      console.error('[sendUserMessage]', err);
+      setError(err?.message ?? 'Errore di connessione');
+      setSessionState('idle');
+      activeRef.current = false;
+    }
+  }, [history, config, playTTS]);
+
+  // ─── Start session ────────────────────────────────────────────────────────
+  const startSession = useCallback(async () => {
+    if (minutesRemaining <= 0) {
+      setError(`Hai esaurito i ${minuteLimit} minuti mensili. Si resetteranno il mese prossimo.`);
+      return;
+    }
+
+    activeRef.current = true;
+    setSessionState('starting');
+    setError('');
+    setTranscript([]);
+    setHistory([]);
+    sessionStartRef.current = Date.now();
+
+    const greeting = `Ciao! Sono ${config.tutorName}. Di cosa vorresti parlare oggi?`;
+    const assistantMsg: ConversationMessage = { role: 'assistant', content: greeting };
+    setHistory([assistantMsg]);
+    setTranscript([{ role: 'assistant', text: greeting }]);
+
+    await playTTS(greeting, config.voiceId);
+  }, [config, minutesRemaining, minuteLimit, playTTS]);
+
+  // ─── End session ──────────────────────────────────────────────────────────
+  const endSession = useCallback(async () => {
+    activeRef.current = false;
+    setSessionState('idle');
+    setIsTutorSpeaking(false);
+    setPartialText('');
+
+    try { await Voice.stop(); } catch {}
+    try { await Voice.cancel(); } catch {}
+    try {
+      await soundRef.current?.stopAsync();
+      await soundRef.current?.unloadAsync();
+      soundRef.current = null;
+    } catch {}
+
+    // Save minutes used
+    if (userId && sessionStartRef.current > 0) {
+      const elapsedMinutes = (Date.now() - sessionStartRef.current) / 60000;
+      sessionStartRef.current = 0;
+      if (elapsedMinutes > 0.1) {
+        await SupabaseService.addTutorMinutes(userId, elapsedMinutes);
+        const updated = await SupabaseService.getTutorMinutesUsed(userId);
+        setMinutesUsed(updated);
+      }
+    }
+  }, [userId]);
+
+  // ─── Save config ──────────────────────────────────────────────────────────
   const saveConfig = useCallback(async () => {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(editingConfig));
     setConfig(editingConfig);
     setShowConfig(false);
   }, [editingConfig]);
 
-  // ─── Iniciar llamada ──────────────────────────────────────────────────────
-  const startCall = useCallback(async () => {
-    if (minutesRemaining <= 0) {
-      setError(`Hai esaurito i ${minuteLimit} minuti mensili. Si resetteranno il mese prossimo.`);
-      return;
-    }
-    setCallStatus('connecting');
-    setTranscript([]);
-    setError('');
-
-    try {
-      const vapi = getVapi();
-      await vapi.start(VAPI_ASSISTANT_ID, {
-        firstMessage: `Ciao! Sono ${config.tutorName}. Di cosa vorresti parlare oggi?`,
-        voice: {
-          provider: '11labs',
-          voiceId: config.voiceId,
-        },
-        model: {
-          provider: 'anthropic',
-          model: 'claude-sonnet-4-5',
-          messages: [
-            {
-              role: 'system',
-              content: buildSystemPrompt(config.tutorName),
-            },
-          ],
-        },
-      } as any);
-    } catch (err: any) {
-      setError(err?.message ?? 'Impossibile avviare la conversazione');
-      setCallStatus('idle');
-    }
-  }, [config]);
-
-  // ─── Terminar llamada ─────────────────────────────────────────────────────
-  const endCall = useCallback(async () => {
-    setCallStatus('ending');
-    try {
-      const vapi = getVapi();
-      await vapi.stop();
-    } catch {
-      setCallStatus('idle');
-    }
-  }, []);
-
-  // ─── Formatear timer ──────────────────────────────────────────────────────
+  // ─── Format timer ─────────────────────────────────────────────────────────
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60).toString().padStart(2, '0');
     const sec = (s % 60).toString().padStart(2, '0');
     return `${m}:${sec}`;
   };
 
-  // ─── Guard: requiere auth y premium ──────────────────────────────────────
+  // ─── Guard: auth ──────────────────────────────────────────────────────────
   if (!isSignedIn && clerkConfigured) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -343,7 +480,7 @@ export default function TutorScreen() {
     );
   }
 
-  // ─── Panel de configuración ───────────────────────────────────────────────
+  // ─── Config panel ─────────────────────────────────────────────────────────
   if (showConfig) {
     const maleVoices = ITALIAN_VOICES.filter(v => v.gender === 'male');
     const femaleVoices = ITALIAN_VOICES.filter(v => v.gender === 'female');
@@ -441,8 +578,13 @@ export default function TutorScreen() {
     );
   }
 
-  // ─── Pantalla principal del tutor ─────────────────────────────────────────
-  const isInCall = callStatus === 'active' || callStatus === 'connecting' || callStatus === 'ending';
+  // ─── Main screen ──────────────────────────────────────────────────────────
+  const speakingLabel = (() => {
+    if (sessionState === 'starting' || sessionState === 'speaking') return '🎙 Sta parlando...';
+    if (sessionState === 'listening') return '👂 In ascolto...';
+    if (sessionState === 'processing') return '⏳ Elaborando...';
+    return '';
+  })();
 
   return (
     <View style={styles.container}>
@@ -450,18 +592,18 @@ export default function TutorScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Tutor AI</Text>
-          {isInCall && (
+          {isInSession && (
             <Text style={styles.sessionTimer}>{formatTime(sessionSeconds)}</Text>
           )}
         </View>
-        {!isInCall && (
+        {!isInSession && (
           <TouchableOpacity style={styles.configIconButton} onPress={() => setShowConfig(true)}>
             <Ionicons name="settings-outline" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Medidor de minutos */}
+      {/* Quota meter */}
       <View style={styles.quotaContainer}>
         <View style={styles.quotaRow}>
           <Ionicons name="time-outline" size={16} color={
@@ -484,7 +626,7 @@ export default function TutorScreen() {
         </View>
       </View>
 
-      {/* Tarjeta del tutor */}
+      {/* Tutor card */}
       <View style={styles.tutorCard}>
         <Animated.View style={[styles.avatarCircle, { transform: [{ scale: pulseAnim }] }]}>
           <Ionicons
@@ -495,18 +637,23 @@ export default function TutorScreen() {
         </Animated.View>
         <Text style={styles.tutorName}>{config.tutorName}</Text>
         <Text style={styles.tutorVoice}>{config.voiceName}</Text>
-        {callStatus === 'active' && (
-          <Text style={styles.speakingStatus}>
-            {isTutorSpeaking ? '🎙 Sta parlando...' : '👂 In ascolto...'}
-          </Text>
-        )}
-        {callStatus === 'connecting' && (
+        {isInSession && speakingLabel ? (
+          <Text style={styles.speakingStatus}>{speakingLabel}</Text>
+        ) : null}
+        {sessionState === 'starting' && (
           <View style={styles.connectingRow}>
             <ActivityIndicator size="small" color="#667eea" />
-            <Text style={styles.connectingText}>Connessione in corso...</Text>
+            <Text style={styles.connectingText}>Avvio sessione...</Text>
           </View>
         )}
       </View>
+
+      {/* Partial transcript */}
+      {partialText ? (
+        <View style={styles.partialBox}>
+          <Text style={styles.partialText}>{partialText}</Text>
+        </View>
+      ) : null}
 
       {/* Transcript */}
       {transcript.length > 0 && (
@@ -535,7 +682,7 @@ export default function TutorScreen() {
         </ScrollView>
       )}
 
-      {transcript.length === 0 && callStatus === 'idle' && (
+      {transcript.length === 0 && sessionState === 'idle' && (
         <View style={styles.emptyHint}>
           <Ionicons name="chatbubbles-outline" size={40} color={colors.textSecondary} />
           <Text style={styles.emptyHintText}>
@@ -552,28 +699,23 @@ export default function TutorScreen() {
         </View>
       ) : null}
 
-      {/* Botón principal */}
+      {/* CTA buttons */}
       <View style={styles.ctaContainer}>
-        {callStatus === 'idle' && (
-          <TouchableOpacity style={styles.startButton} onPress={startCall} activeOpacity={0.85}>
+        {sessionState === 'idle' && (
+          <TouchableOpacity style={styles.startButton} onPress={startSession} activeOpacity={0.85}>
             <Ionicons name="mic" size={32} color="#fff" />
             <Text style={styles.startButtonText}>Inizia Conversazione</Text>
           </TouchableOpacity>
         )}
-        {callStatus === 'connecting' && (
+        {sessionState === 'starting' && (
           <TouchableOpacity style={[styles.startButton, styles.buttonDisabled]} disabled>
             <ActivityIndicator color="#fff" />
           </TouchableOpacity>
         )}
-        {callStatus === 'active' && (
-          <TouchableOpacity style={styles.endButton} onPress={endCall} activeOpacity={0.85}>
+        {(sessionState === 'listening' || sessionState === 'processing' || sessionState === 'speaking') && (
+          <TouchableOpacity style={styles.endButton} onPress={endSession} activeOpacity={0.85}>
             <Ionicons name="call" size={32} color="#fff" />
             <Text style={styles.endButtonText}>Termina</Text>
-          </TouchableOpacity>
-        )}
-        {callStatus === 'ending' && (
-          <TouchableOpacity style={[styles.endButton, styles.buttonDisabled]} disabled>
-            <ActivityIndicator color="#fff" />
           </TouchableOpacity>
         )}
       </View>
@@ -581,13 +723,12 @@ export default function TutorScreen() {
   );
 }
 
-// ─── Estilos ──────────────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const getStyles = (colors: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     center: { justifyContent: 'center', alignItems: 'center', padding: 32 },
 
-    // Lock screens
     lockTitle: {
       fontSize: 22,
       fontWeight: 'bold',
@@ -611,7 +752,6 @@ const getStyles = (colors: any) =>
     },
     lockButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
-    // Header
     header: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -633,7 +773,6 @@ const getStyles = (colors: any) =>
     },
     configIconButton: { padding: 8 },
 
-    // Quota meter
     quotaContainer: {
       marginHorizontal: 20,
       marginBottom: 8,
@@ -659,10 +798,9 @@ const getStyles = (colors: any) =>
       borderRadius: 2,
     },
 
-    // Tutor card
     tutorCard: {
       alignItems: 'center',
-      paddingVertical: 28,
+      paddingVertical: 24,
     },
     avatarCircle: {
       width: 100,
@@ -698,7 +836,22 @@ const getStyles = (colors: any) =>
     },
     connectingText: { fontSize: 14, color: '#667eea' },
 
-    // Transcript
+    partialBox: {
+      marginHorizontal: 16,
+      marginBottom: 4,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    partialText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      fontStyle: 'italic',
+    },
+
     transcriptBox: {
       flex: 1,
       marginHorizontal: 16,
@@ -725,7 +878,6 @@ const getStyles = (colors: any) =>
     bubbleTextTutor: { color: colors.text },
     bubbleTextUser: { color: '#fff' },
 
-    // Empty hint
     emptyHint: {
       flex: 1,
       justifyContent: 'center',
@@ -740,7 +892,6 @@ const getStyles = (colors: any) =>
       lineHeight: 22,
     },
 
-    // Error
     errorBox: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -753,7 +904,6 @@ const getStyles = (colors: any) =>
     },
     errorText: { color: '#c62828', fontSize: 13, flex: 1 },
 
-    // CTA buttons
     ctaContainer: {
       paddingHorizontal: 20,
       paddingBottom: 24,
@@ -791,7 +941,6 @@ const getStyles = (colors: any) =>
     endButtonText: { color: '#fff', fontSize: 18, fontWeight: '700' },
     buttonDisabled: { opacity: 0.6 },
 
-    // Config screen
     configScroll: { padding: 24, paddingBottom: 40 },
     configHeader: {
       flexDirection: 'row',

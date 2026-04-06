@@ -25,7 +25,7 @@ export default {
     },
     android: {
       package: "com.italiantoapp.app",
-      versionCode: 5,
+      versionCode: 6,
       minSdkVersion: 24,
       permissions: [
         "android.permission.RECORD_AUDIO",
@@ -42,7 +42,15 @@ export default {
       adaptiveIcon: {
         foregroundImage: "./assets/Logo_ItaliAnto.png",
         backgroundColor: "#2e7d32"
-      }
+      },
+      intentFilters: [
+        {
+          action: "VIEW",
+          autoVerify: true,
+          data: [{ scheme: "italiantoapp" }],
+          category: ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     web: {
       favicon: "./assets/Logo_ItaliAnto.png",

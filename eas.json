@@ -27,10 +27,7 @@
         "EXPO_PUBLIC_SUPABASE_URL": "https://zhpnoohdefnigumjgxbc.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpocG5vb2hkZWZuaWd1bWpneGJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwOTMwOTQsImV4cCI6MjA4ODY2OTA5NH0.0VHkHUdgf2TkmHlcWA6ru5s0Q9e6yX2YVhQkvDxDMVc",
         "EXPO_PUBLIC_ITALIANTO_URL": "https://italianto.com",
-        "EXPO_PUBLIC_VAPI_PUBLIC_KEY": "01b556bf-be48-4fc3-a491-e6da30a4d221",
-        "EXPO_PUBLIC_VAPI_ASSISTANT_ID": "cefa9428-a243-4526-a44b-19900919580a",
         "EXPO_PUBLIC_ELEVENLABS_API_KEY": "e43af4b467b28d5964ec74f951bf9feaee82c083fda6d2f2e34da27280ca41c2",
-        "EXPO_PUBLIC_ELEVENLABS_VOICE_ID": "b8jhBTcGAq4kQGWmKprT",
         "EXPO_PUBLIC_DEEPL_API_KEY": "71ff8838-ffff-427b-812f-ebb76efe3e61:fx"
       }
     },
@@ -46,10 +43,7 @@
         "EXPO_PUBLIC_SUPABASE_URL": "https://zhpnoohdefnigumjgxbc.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpocG5vb2hkZWZuaWd1bWpneGJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwOTMwOTQsImV4cCI6MjA4ODY2OTA5NH0.0VHkHUdgf2TkmHlcWA6ru5s0Q9e6yX2YVhQkvDxDMVc",
         "EXPO_PUBLIC_ITALIANTO_URL": "https://italianto.com",
-        "EXPO_PUBLIC_VAPI_PUBLIC_KEY": "01b556bf-be48-4fc3-a491-e6da30a4d221",
-        "EXPO_PUBLIC_VAPI_ASSISTANT_ID": "cefa9428-a243-4526-a44b-19900919580a",
         "EXPO_PUBLIC_ELEVENLABS_API_KEY": "e43af4b467b28d5964ec74f951bf9feaee82c083fda6d2f2e34da27280ca41c2",
-        "EXPO_PUBLIC_ELEVENLABS_VOICE_ID": "b8jhBTcGAq4kQGWmKprT",
         "EXPO_PUBLIC_DEEPL_API_KEY": "71ff8838-ffff-427b-812f-ebb76efe3e61:fx"
       }
     }
