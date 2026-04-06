@@ -58,8 +58,6 @@ export default function SignUpScreen() {
       const { createdSessionId, setActive: setActiveOAuth } = await startSSOFlow({
         strategy: 'oauth_google',
         redirectUrl,
-        afterSignInUrl: 'https://italianto.com/auth/callback',
-        afterSignUpUrl: 'https://italianto.com/auth/callback',
       });
 
       if (createdSessionId && setActiveOAuth) {
