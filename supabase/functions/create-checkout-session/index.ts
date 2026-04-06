@@ -17,7 +17,7 @@ Deno.serve(async (req: Request) => {
       httpClient: Stripe.createFetchHttpClient(),
     });
 
-    const { userId, userEmail, priceId, planType } = await req.json();
+    const { userId, userEmail, priceId, planType, billingInterval } = await req.json();
 
     if (!userId || !userEmail || !priceId || !planType) {
       return new Response(
@@ -33,9 +33,9 @@ Deno.serve(async (req: Request) => {
       success_url: `italiantoapp://subscription?status=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `italiantoapp://subscription?status=cancel`,
       customer_email: userEmail,
-      metadata: { userId, planType },
+      metadata: { userId, planType, billingInterval: billingInterval ?? 'month' },
       subscription_data: {
-        metadata: { userId, planType },
+        metadata: { userId, planType, billingInterval: billingInterval ?? 'month' },
       },
       allow_promotion_codes: true,
     });

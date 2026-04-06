@@ -46,7 +46,17 @@
       "WebFetch(domain:www.netlify.com)",
       "WebFetch(domain:shopify.github.io)",
       "Bash(npx supabase:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "WebFetch(domain:scrollxui.dev)",
+      "Bash(cat /mnt/c/Proyectos/ItaliantoApp/node_modules/@vapi-ai/web/package.json 2>/dev/null | python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('main:', d.get\\('main',''\\)\\); print\\('module:', d.get\\('module',''\\)\\); print\\('deps:', list\\(d.get\\('dependencies',{}\\).keys\\(\\)\\)\\)\")",
+      "Bash(ls /mnt/c/Proyectos/ItaliantoApp/node_modules/@daily-co/daily-js/package.json 2>/dev/null && cat /mnt/c/Proyectos/ItaliantoApp/node_modules/@daily-co/daily-js/package.json | python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('main:', d.get\\('main',''\\)\\); print\\('browser:', d.get\\('browser',''\\)\\); print\\('module:', d.get\\('module',''\\)\\)\")",
+      "Bash(git push:*)",
+      "Bash(cat /mnt/c/Proyectos/ItaliantoApp/package.json | python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('scripts',{}\\), indent=2\\)\\)\")",
+      "Bash(npm list:*)",
+      "Bash(node:*)",
+      "Bash(echo:*)",
+      "Bash(wc -l /mnt/c/Proyectos/ItaliantoApp/src/context/*.tsx)",
+      "Bash(wc:*)"
     ],
     "deny": []
   }

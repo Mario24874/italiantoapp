@@ -44,11 +44,17 @@ Deno.serve(async (req: Request) => {
 
       if (session.subscription) {
         const sub = await stripe.subscriptions.retrieve(session.subscription as string);
+        const item = sub.items.data[0];
+        const billingInterval = item?.plan?.interval === 'year' ? 'year' : 'month';
 
         const { error } = await supabase.from('subscriptions').upsert({
           user_id: userId,
           status: 'active',
           plan_type: planType,
+          billing_interval: billingInterval,
+          price_id: item?.price?.id ?? null,
+          amount: item?.price?.unit_amount ?? null,
+          currency: item?.price?.currency ?? null,
           current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
           cancel_at_period_end: sub.cancel_at_period_end,
           updated_at: new Date().toISOString(),
