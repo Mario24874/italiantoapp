@@ -88,15 +88,33 @@ export class SupabaseService {
   }
 
   /**
-   * Obtiene el estado de suscripción del usuario desde Supabase.
-   * Retorna null si el usuario es free (sin registro) o si Supabase no está configurado.
+   * Obtiene la suscripción buscando por email del usuario.
+   * Permite que ItaliantoApp (Clerk propio) acceda a suscripciones de italianto.com.
+   */
+  static async getSubscriptionByEmail(email: string): Promise<SupabaseSubscription | null> {
+    const client = getClient();
+    if (!client) return null;
+
+    const { data, error } = await client
+      .rpc('get_subscription_by_email', { p_email: email })
+      .maybeSingle();
+
+    if (error) {
+      console.error('[Supabase] getSubscriptionByEmail:', error.message);
+      return null;
+    }
+
+    return data;
+  }
+
+  /**
+   * @deprecated Usar getSubscriptionByEmail cuando sea posible.
+   * Obtiene el estado de suscripción del usuario desde Supabase por user_id.
    */
   static async getSubscription(userId: string): Promise<SupabaseSubscription | null> {
     const client = getClient();
     if (!client) return null;
 
-    // Filtrar solo suscripciones activas — evita el fallo de .single() cuando
-    // el usuario tiene múltiples filas (free + active) en la tabla subscriptions
     const { data, error } = await client
       .from('subscriptions')
       .select('*')

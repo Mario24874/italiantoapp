@@ -23,6 +23,7 @@ import { SupabaseService, TUTOR_MINUTE_LIMITS } from '../services/supabaseServic
 
 const ITALIANTO_URL = process.env.EXPO_PUBLIC_ITALIANTO_URL ?? 'https://italianto.com';
 const ELEVENLABS_API_KEY = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY ?? '';
+const APP_TOKEN = process.env.EXPO_PUBLIC_APP_TOKEN ?? '';
 
 // ─── Voces italianas curadas ──────────────────────────────────────────────────
 export const ITALIAN_VOICES = [
@@ -129,7 +130,7 @@ async function synthesizeSpeech(text: string, voiceId: string): Promise<string |
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function TutorScreen() {
   const { colors } = useTheme();
-  const { isSignedIn, isPremium, clerkConfigured, userId, subscriptionPlan } = useAuth();
+  const { isSignedIn, isPremium, clerkConfigured, userId, userEmail, subscriptionPlan } = useAuth();
   const navigation = useNavigation<any>();
 
   const minuteLimit = TUTOR_MINUTE_LIMITS[subscriptionPlan ?? 'free'] ?? 0;
@@ -353,10 +354,14 @@ export default function TutorScreen() {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
-      const res = await fetch(`${ITALIANTO_URL}/api/tutor/chat`, {
+      const res = await fetch(`${ITALIANTO_URL}/api/app/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-app-token': APP_TOKEN,
+        },
         body: JSON.stringify({
+          email: userEmail,
           messages: updatedHistory,
           tutorName: config.tutorName,
         }),

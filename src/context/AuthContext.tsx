@@ -44,18 +44,18 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const [subscriptionPlan, setSubscriptionPlan] = useState<'free' | 'essenziale' | 'avanzato' | 'maestro' | null>(null);
 
   const refreshSubscription = useCallback(async () => {
-    if (!userId) return;
-    const sub = await SupabaseService.getSubscription(userId);
-    const active = sub?.status === 'active';
+    if (!userEmail) return;
+    // Look up by email — bridges ItaliantoApp Clerk with italianto.com subscriptions
+    const sub = await SupabaseService.getSubscriptionByEmail(userEmail);
+    const active = sub?.status === 'active' || sub?.status === 'trialing';
     setIsPremium(active);
     setSubscriptionPlan(active ? (sub?.plan_type as any) : 'free');
-  }, [userId]);
+  }, [userEmail]);
 
   // Sincronizar usuario con Supabase tras sign in y cargar suscripción
   useEffect(() => {
     if (isSignedIn && userId && userEmail) {
       SupabaseService.upsertUser(userId, userEmail);
-      SupabaseService.ensureFreeSubscription(userId);
       refreshSubscription();
     } else if (!isSignedIn) {
       setIsPremium(false);
