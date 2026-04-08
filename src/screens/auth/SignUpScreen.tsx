@@ -53,7 +53,7 @@ export default function SignUpScreen() {
       await WebBrowser.warmUpAsync();
       const redirectUrl = Platform.OS === 'web'
         ? window.location.origin
-        : 'italiantoapp://oauth-native-callback';
+        : 'https://italianto.com/auth/callback';
 
       const { createdSessionId, setActive: setActiveOAuth } = await startSSOFlow({
         strategy: 'oauth_google',

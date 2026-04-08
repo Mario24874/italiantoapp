@@ -47,12 +47,12 @@ export default function SignInScreen() {
     try {
       await WebBrowser.warmUpAsync();
 
-      // Hardcoded to match EXACTLY what's in the Clerk Native Applications allowlist.
-      // Linking.createURL() on Android generates triple-slash (italiantoapp:///)
-      // which doesn't match and causes Clerk to fall back to the web app URL.
+      // Web: redirect back to this origin (Clerk handles the callback internally)
+      // Native: use the HTTPS bridge page — Chrome Custom Tab cannot redirect to
+      // custom schemes (italiantoapp://) directly; the bridge page forwards the params.
       const redirectUrl = Platform.OS === 'web'
         ? window.location.origin
-        : 'italiantoapp://oauth-native-callback';
+        : 'https://italianto.com/auth/callback';
 
       const { createdSessionId, setActive: setActiveOAuth } = await startSSOFlow({
         strategy: 'oauth_google',
