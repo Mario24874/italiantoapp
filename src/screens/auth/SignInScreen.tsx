@@ -47,23 +47,30 @@ export default function SignInScreen() {
     try {
       await WebBrowser.warmUpAsync();
 
-      // Web: redirect back to this origin (Clerk handles the callback internally)
-      // Native: use the HTTPS bridge page — Chrome Custom Tab cannot redirect to
-      // custom schemes (italiantoapp://) directly; the bridge page forwards the params.
       const redirectUrl = Platform.OS === 'web'
         ? window.location.origin
-        : 'https://italianto.com/auth/callback';
+        : 'italiantoapp://oauth-native-callback';
 
-      const { createdSessionId, setActive: setActiveOAuth } = await startSSOFlow({
+      const result = await startSSOFlow({
         strategy: 'oauth_google',
         redirectUrl,
       });
 
+      const { createdSessionId, setActive: setActiveOAuth, signIn: ssoSignIn, signUp: ssoSignUp } = result;
+
       if (createdSessionId && setActiveOAuth) {
         await setActiveOAuth({ session: createdSessionId });
         navigation.goBack();
+      } else if (ssoSignUp?.status === 'missing_requirements') {
+        // New Google user — complete sign-up automatically
+        const completedSignUp = await ssoSignUp.update({});
+        if (completedSignUp.status === 'complete' && setActiveOAuth) {
+          await setActiveOAuth({ session: completedSignUp.createdSessionId! });
+          navigation.goBack();
+        }
       } else {
-        setError('Google Sign-In no completado. Verifica tu conexión e intenta de nuevo.');
+        const statusInfo = ssoSignIn?.status ?? ssoSignUp?.status ?? 'unknown';
+        setError(`Google Sign-In incompleto (${statusInfo}). Intenta de nuevo.`);
       }
     } catch (err: any) {
       const msg = err?.errors?.[0]?.longMessage
