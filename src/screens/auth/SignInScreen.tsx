@@ -56,22 +56,25 @@ export default function SignInScreen() {
         redirectUrl,
       });
 
-      const { createdSessionId, setActive: setActiveOAuth, signIn: ssoSignIn, signUp: ssoSignUp } = result;
+      const { createdSessionId, setActive: setActiveOAuth, signUp: ssoSignUp } = result;
 
       if (createdSessionId && setActiveOAuth) {
+        // Direct completion (common on iOS).
         await setActiveOAuth({ session: createdSessionId });
         navigation.goBack();
       } else if (ssoSignUp?.status === 'missing_requirements') {
-        // New Google user — complete sign-up automatically
+        // First-time Google user — complete sign-up automatically.
         const completedSignUp = await ssoSignUp.update({});
         if (completedSignUp.status === 'complete' && setActiveOAuth) {
           await setActiveOAuth({ session: completedSignUp.createdSessionId! });
           navigation.goBack();
         }
-      } else {
-        const statusInfo = ssoSignIn?.status ?? ssoSignUp?.status ?? 'unknown';
-        setError(`Google Sign-In incompleto (${statusInfo}). Intenta de nuevo.`);
       }
+      // On Android, Chrome Custom Tab fires the italiantoapp:// intent and
+      // closes immediately, so openAuthSessionAsync returns 'cancel' and
+      // startSSOFlow returns null even though OAuth succeeded on Clerk's
+      // server. OAuthNativeCallback handles this via signIn.reload().
+      // The isSignedIn effect below will navigate back once the session lands.
     } catch (err: any) {
       const msg = err?.errors?.[0]?.longMessage
         ?? err?.errors?.[0]?.message

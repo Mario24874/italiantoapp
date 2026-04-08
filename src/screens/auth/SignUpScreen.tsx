@@ -63,9 +63,8 @@ export default function SignUpScreen() {
       if (createdSessionId && setActiveOAuth) {
         await setActiveOAuth({ session: createdSessionId });
         navigation.goBack();
-      } else {
-        setError('Google Sign-In no completado. Verifica tu conexión e intenta de nuevo.');
       }
+      // Android: OAuthNativeCallback handles completion via signIn.reload().
     } catch (err: any) {
       const msg = err?.errors?.[0]?.longMessage
         ?? err?.errors?.[0]?.message
